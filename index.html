@@ -1,0 +1,1839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#eef1f5">
+<title>Invoice → Excel Generator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --blue:#2a7de1; --blue-dark:#1e5fb0; --blue-light:#eaf2fd; --ring:rgba(42,125,225,.16);
+    --ink:#1f2733; --muted:#66707c; --faint:#a7afb9; --border:#dbe1e8; --bg:#eef1f5;
+    --field:#fbfcfd; --soft:#f5f7fa; --line:#eef0f3;
+    --ok:#1e8e3e; --ok-bg:#e8f7ee; --err:#c0392b; --err-bg:#fdeaea; --warn:#a15c00; --warn-bg:#fff4e0;
+    --radius:12px; --radius-sm:8px;
+    --shadow-card:0 1px 3px rgba(20,30,50,.06), 0 8px 20px -12px rgba(20,30,50,.12);
+    --shadow-pop:0 18px 40px -12px rgba(20,30,50,.30), 0 3px 8px rgba(20,30,50,.08);
+    color-scheme: light;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html{ -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+  body{
+    margin:0; min-height:100vh; background:var(--bg); color:var(--ink);
+    font-family:'Segoe UI',Roboto,-apple-system,BlinkMacSystemFont,Arial,sans-serif;
+    padding:clamp(14px,3vw,24px);
+    padding-top:calc(clamp(14px,3vw,24px) + env(safe-area-inset-top,0px));
+    padding-left:calc(clamp(14px,3vw,24px) + env(safe-area-inset-left,0px));
+    padding-right:calc(clamp(14px,3vw,24px) + env(safe-area-inset-right,0px));
+    padding-bottom:calc(16px + env(safe-area-inset-bottom,0px));
+    -webkit-font-smoothing:antialiased;
+  }
+  body.no-scroll{ overflow:hidden; }
+  button{ font-family:inherit; }
+  [hidden]{ display:none !important; }
+  .wrap{ max-width:1040px; margin:0 auto; }
+
+  /* ---------- header ---------- */
+  header{ text-align:center; margin-bottom:18px; }
+  header h1{ font-size:clamp(19px,4vw,24px); margin:0 0 4px; letter-spacing:-.2px; }
+  header p{ margin:0 auto; max-width:560px; font-size:12.5px; color:var(--muted); line-height:1.5; }
+  #companyLine{
+    display:inline-block; margin-top:10px; padding:5px 14px; max-width:100%;
+    background:var(--blue-light); color:var(--blue-dark);
+    border-radius:999px; font-size:12px; font-weight:700; line-height:1.4;
+  }
+
+  /* ---------- cards ---------- */
+  .card{
+    background:#fff; border-radius:var(--radius); padding:clamp(14px,3vw,22px);
+    box-shadow:var(--shadow-card); margin-bottom:16px; border:1px solid var(--line);
+  }
+  .card-head{
+    display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap;
+    gap:8px 10px; margin-bottom:16px; border-bottom:2px solid var(--blue-light); padding-bottom:10px;
+  }
+  h3{ margin:0; font-size:14.5px; font-weight:700; color:#2c3542; }
+  .badge{
+    font-size:11.5px; font-weight:700; padding:4px 10px; border-radius:999px;
+    background:var(--soft); color:var(--muted); white-space:nowrap;
+  }
+  .badge.intra{ background:var(--ok-bg); color:var(--ok); }
+  .badge.inter{ background:var(--warn-bg); color:var(--warn); }
+
+  /* ---------- form fields ---------- */
+  label, .lbl{
+    font-size:11px; font-weight:700; color:var(--muted); display:block; margin-bottom:5px;
+    text-transform:uppercase; letter-spacing:.4px;
+  }
+  .grid{ display:grid; gap:14px; grid-template-columns:repeat(3,minmax(0,1fr)); align-items:start; }
+  .grid + .grid{ margin-top:14px; }
+  .field{ min-width:0; }
+  @media (max-width:760px){ .grid{ grid-template-columns:repeat(2,minmax(0,1fr)); } }
+  @media (max-width:520px){ .grid{ grid-template-columns:minmax(0,1fr); } }
+
+  input[type="text"], input[type="number"], .picker-trigger{
+    width:100%; margin:0; padding:10px 12px; min-height:44px;
+    border:1.5px solid var(--border); border-radius:var(--radius-sm);
+    font-family:inherit; font-size:14.5px; line-height:1.3; color:var(--ink); background:var(--field);
+    transition:border-color .15s, box-shadow .15s, background .15s;
+  }
+  input::placeholder{ color:var(--faint); opacity:1; }
+  input:hover, .picker-trigger:hover{ border-color:#c3cbd4; }
+  input:focus, .picker-trigger:focus-visible, .picker-trigger[aria-expanded="true"]{
+    outline:none; border-color:var(--blue); background:#fff; box-shadow:0 0 0 3px var(--ring);
+  }
+  .picker-trigger:focus{ outline:none; }
+  input[type="number"]{ -moz-appearance:textfield; appearance:textfield; }
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button{ -webkit-appearance:none; margin:0; }
+  .invalid, .invalid:hover, .invalid:focus{
+    border-color:var(--err) !important; background:#fff !important;
+    box-shadow:0 0 0 3px rgba(192,57,43,.12) !important;
+  }
+  .upper{ text-transform:uppercase; }
+  .upper::placeholder{ text-transform:none; }
+
+  /* picker trigger (dropdown / date button) */
+  .picker-trigger{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    text-align:left; cursor:pointer; -webkit-appearance:none; appearance:none;
+  }
+  .pt-value{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pt-value.placeholder{ color:var(--faint); }
+  .pt-sub{ color:var(--muted); font-size:.86em; margin-left:6px; }
+  .picker-trigger [data-icon]{ display:flex; flex:none; color:var(--muted); transition:color .15s; }
+  .picker-trigger[aria-expanded="true"] [data-icon]{ color:var(--blue); }
+  .chev{ transition:transform .18s ease; }
+  [aria-expanded="true"] .chev, [aria-expanded="true"] + .combo-btn .chev{ transform:rotate(180deg); }
+
+  /* combo box (type or pick) */
+  .combo{ position:relative; }
+  .combo input{ padding-right:42px; text-overflow:ellipsis; }
+  .combo input[readonly]{ cursor:pointer; }
+  .combo-btn{
+    position:absolute; top:50%; right:5px; transform:translateY(-50%);
+    width:34px; height:34px; padding:0; border:none; border-radius:6px; background:none;
+    color:var(--muted); cursor:pointer; display:grid; place-items:center;
+  }
+  .combo-btn:hover{ background:var(--blue-light); color:var(--blue-dark); }
+  .combo input[aria-expanded="true"] + .combo-btn{ color:var(--blue); }
+
+  .hint{ font-size:11.5px; color:var(--muted); margin-top:5px; line-height:1.35; }
+  .hint:empty{ display:none; }
+  .hint.ok{ color:var(--ok); } .hint.warn{ color:var(--warn); }
+
+  .link-btn{
+    background:none; border:none; color:var(--blue); font-size:12px; font-weight:700;
+    cursor:pointer; padding:7px 0 0; text-decoration:underline; text-underline-offset:2px;
+  }
+  .link-btn:hover{ color:var(--blue-dark); }
+
+  /* ---------- buttons ---------- */
+  .btn{
+    border:none; border-radius:var(--radius-sm); font-weight:700; cursor:pointer;
+    font-size:13.5px; padding:11px 18px; min-height:42px;
+    transition:opacity .15s, transform .05s, box-shadow .15s, background .15s;
+  }
+  .btn:active{ transform:scale(.97); }
+  .btn:hover{ opacity:.92; }
+  .btn:focus-visible, .link-btn:focus-visible, .combo-btn:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+  .btn-add{ background:var(--blue-light); color:var(--blue-dark); margin-top:12px; }
+  .btn-secondary{ background:#fff; color:var(--ink); border:1.5px solid var(--border); }
+  .btn-primary{ background:linear-gradient(135deg,var(--blue),var(--blue-dark)); color:#fff; min-width:96px; }
+  .btn-generate{
+    flex:1 1 220px; display:flex; align-items:center; justify-content:center; gap:8px;
+    background:linear-gradient(135deg,var(--blue),var(--blue-dark)); color:#fff;
+    padding:14px 18px; font-size:15.5px; border-radius:var(--radius);
+    box-shadow:0 4px 14px rgba(42,125,225,.35);
+  }
+  .btn-generate:disabled{ opacity:.7; cursor:progress; transform:none; }
+
+  /* ---------- items ---------- */
+  .items-head, .item-row{
+    display:grid; gap:8px; align-items:center;
+    grid-template-columns:28px minmax(0,1.3fr) minmax(0,1.45fr) minmax(0,.62fr) minmax(0,.72fr) minmax(0,.85fr) minmax(0,.7fr) minmax(0,.95fr) 40px;
+  }
+  .items-head{
+    background:var(--blue-light); border-radius:var(--radius-sm); padding:9px 8px;
+    font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.3px; color:#345;
+  }
+  .items-head .r{ text-align:right; }
+  .item-row{ padding:8px; border-bottom:1px solid #f0f2f5; }
+  .item-row:nth-child(even){ background:#fafbfc; }
+  .item-row input[type="text"], .item-row input[type="number"], .item-row .picker-trigger{
+    padding:8px 10px; font-size:13.5px; min-height:40px;
+  }
+  .item-row .combo input{ padding-right:38px; }
+  .ir-no{ font-size:12px; font-weight:700; color:var(--muted); text-align:center; }
+  .m-label{ display:none; }
+  .affix{ position:relative; }
+  .affix > span{
+    position:absolute; left:10px; top:50%; transform:translateY(-50%);
+    color:var(--muted); font-size:13px; pointer-events:none;
+  }
+  .item-row .affix input{ padding-left:22px; }
+  .ir-total{ text-align:right; font-weight:700; font-size:13.5px; font-variant-numeric:tabular-nums; line-height:1.25; }
+  .ir-total small{ display:block; font-weight:500; font-size:11px; color:var(--muted); }
+  .btn-x{
+    width:40px; height:40px; padding:0; border:none; border-radius:var(--radius-sm);
+    background:var(--err-bg); color:var(--err); cursor:pointer; display:grid; place-items:center;
+    transition:background .15s, transform .05s;
+  }
+  .btn-x:hover{ background:#fad6d6; }
+  .btn-x:active{ transform:scale(.94); }
+  .btn-x:focus-visible{ outline:2px solid var(--err); outline-offset:2px; }
+
+  @media (max-width:860px){
+    .items-head{ display:none; }
+    .item-row{
+      grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+      grid-template-areas:"no x" "item item" "narr narr" "qty unit" "rate gst" "amt amt";
+      gap:12px 10px; padding:12px 14px 14px; margin-bottom:12px;
+      border:1px solid var(--border); border-radius:var(--radius); background:#fff !important;
+    }
+    .ir-no{ grid-area:no; text-align:left; font-size:12px; color:var(--blue-dark); text-transform:uppercase; letter-spacing:.4px; }
+    .ir-no::before{ content:"Item "; }
+    .ir-x{ grid-area:x; justify-self:end; }
+    .btn-x{ width:36px; height:36px; }
+    .ir-item{ grid-area:item; } .ir-narr{ grid-area:narr; } .ir-qty{ grid-area:qty; }
+    .ir-rate{ grid-area:rate; } .ir-gst{ grid-area:gst; } .ir-amt{ grid-area:amt; } .ir-unit{ grid-area:unit; }
+    .m-label{ display:block; }
+    .ir-total{
+      text-align:left; min-height:40px; display:flex; flex-direction:column; justify-content:center;
+      background:var(--soft); border-radius:var(--radius-sm); padding:4px 10px;
+    }
+  }
+
+  /* ---------- summary ---------- */
+  .summary{
+    display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:10px;
+    margin-top:16px; padding-top:16px; border-top:1px dashed var(--border);
+  }
+  .card-sub{ margin:-8px 0 14px; font-size:12px; color:var(--muted); line-height:1.45; }
+  .opt{ font-weight:600; text-transform:none; letter-spacing:0; color:var(--faint); }
+  .stat{ background:var(--soft); border-radius:var(--radius-sm); padding:10px 12px; min-width:0; }
+  .stat span{ display:block; font-size:10.5px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.3px; }
+  .stat b{ display:block; margin-top:3px; font-size:15px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+  .stat.grand{ background:var(--blue-light); }
+  .stat.grand b{ color:var(--blue-dark); font-size:16px; }
+  @media (max-width:860px){
+    .summary{ grid-template-columns:repeat(3,minmax(0,1fr)); }
+  }
+  @media (max-width:420px){
+    .summary{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+  }
+
+  /* ---------- sticky action bar ---------- */
+  .action-bar{ position:sticky; bottom:calc(10px + env(safe-area-inset-bottom,0px)); z-index:20; }
+  .action-card{
+    display:flex; align-items:center; flex-wrap:wrap; gap:10px 16px;
+    padding:12px 14px; margin-bottom:0; box-shadow:0 12px 32px -10px rgba(20,30,50,.32);
+  }
+  .ab-total{ display:flex; flex-direction:column; line-height:1.25; min-width:0; }
+  .ab-total span{ font-size:10.5px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; }
+  .ab-total b{ font-size:19px; font-variant-numeric:tabular-nums; }
+  .ab-total small{ font-size:11.5px; color:var(--muted); }
+  #status{ flex-basis:100%; text-align:center; font-size:13px; font-weight:700; margin:0; }
+  #status:empty{ display:none; }
+  .ok{ color:var(--ok); } .err{ color:var(--err); }
+
+  footer{ text-align:center; font-size:11px; color:#98a2ad; margin-top:14px; }
+
+  /* ---------- party master modal ---------- */
+  .modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(20,30,50,.45); z-index:100;
+    padding:16px; align-items:center; justify-content:center;
+    padding-top:calc(16px + env(safe-area-inset-top,0px));
+    padding-bottom:calc(16px + env(safe-area-inset-bottom,0px));
+  }
+  .modal-overlay.open{ display:flex; }
+  .modal{
+    background:#fff; border-radius:var(--radius); width:100%; max-width:720px;
+    max-height:88vh; max-height:88dvh; display:flex; flex-direction:column; overflow:hidden;
+    box-shadow:0 20px 50px rgba(0,0,0,.25); animation:pkIn .16s ease-out;
+  }
+  .modal-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:16px 18px 12px; }
+  .modal-head h3{ font-size:15px; }
+  .icon-btn{
+    width:34px; height:34px; flex:none; border:none; border-radius:50%; background:var(--bg);
+    color:var(--muted); cursor:pointer; display:grid; place-items:center; padding:0;
+  }
+  .icon-btn:hover{ background:#e2e7ee; color:var(--ink); }
+  .icon-btn:focus-visible{ outline:2px solid var(--blue); outline-offset:2px; }
+  .modal-tools{ padding:0 18px 12px; border-bottom:1px solid var(--border); }
+  .search-box{ position:relative; }
+  .search-box svg{ position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none; }
+  .search-box input{ padding-left:36px; }
+  .modal-note{ font-size:12px; color:var(--muted); margin:8px 0 0; line-height:1.5; }
+  .modal-body{ padding:4px 18px 10px; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+  .pm-row{
+    display:grid; grid-template-columns:minmax(0,1.5fr) minmax(0,1.1fr) minmax(0,1fr); gap:8px;
+    align-items:center; padding:8px 0; border-bottom:1px solid #f0f2f5;
+  }
+  .pm-row:last-child{ border-bottom:none; }
+  .pm-headrow{
+    position:sticky; top:0; z-index:1; background:#fff; padding:10px 0 8px;
+    font-size:10.5px; font-weight:700; text-transform:uppercase; color:var(--muted);
+    border-bottom:2px solid var(--blue-light);
+  }
+  .pm-name{ font-size:13px; font-weight:600; overflow-wrap:anywhere; }
+  .pm-row input[type="text"], .pm-row .picker-trigger{ font-size:13px; padding:7px 9px; min-height:38px; }
+  .pm-empty{ text-align:center; color:var(--muted); font-size:13px; padding:28px 0; }
+  .modal-foot{
+    padding:12px 18px; border-top:1px solid var(--border);
+    display:flex; align-items:center; gap:10px; justify-content:flex-end;
+    padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));
+  }
+  .modal-foot .count{ margin-right:auto; font-size:12px; color:var(--muted); }
+  .modal-foot .btn-add{ margin-top:0; }
+
+  /* add new party / stock item */
+  .pm-add{ background:var(--soft); border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:12px; }
+  .pm-add-title{ font-size:11px; font-weight:700; text-transform:uppercase; color:var(--muted); letter-spacing:.4px; margin-bottom:8px; }
+  .pm-add-grid{ display:grid; grid-template-columns:minmax(0,1.5fr) minmax(0,1.1fr) minmax(0,1fr) auto; gap:8px; align-items:center; }
+  .sm-add-grid{ grid-template-columns:minmax(0,1fr) auto; }
+  .pm-add input[type="text"], .pm-add .picker-trigger{ font-size:13px; padding:7px 9px; min-height:40px; background:#fff; }
+  .pm-add .btn{ margin:0; min-height:40px; white-space:nowrap; }
+  .hint.err{ color:var(--err); }
+  .tag-new{
+    display:inline-block; margin-left:6px; font-size:10px; font-weight:700; color:var(--ok);
+    background:var(--ok-bg); padding:1px 7px; border-radius:99px; vertical-align:middle;
+  }
+  .row-del{
+    margin-left:6px; border:none; background:none; color:var(--err); cursor:pointer;
+    font-size:12px; font-weight:700; padding:2px 6px; border-radius:6px; font-family:inherit;
+  }
+  .row-del:hover{ background:var(--err-bg); }
+  .pm-row.just-added, .sm-row.just-added{ animation:flashNew 1.6s ease-out; }
+  @keyframes flashNew{ from{ background:var(--ok-bg); } to{ background:transparent; } }
+  .sm-row{ display:flex; align-items:center; gap:8px; padding:10px 0; border-bottom:1px solid #f0f2f5; font-size:13px; }
+  .sm-row:last-child{ border-bottom:none; }
+  .sm-row .nm{ flex:1; min-width:0; overflow-wrap:anywhere; }
+  .items-actions{ display:flex; align-items:center; flex-wrap:wrap; gap:10px 16px; margin-top:12px; }
+  .items-actions .btn-add{ margin-top:0; }
+  .items-actions .link-btn{ padding:0; }
+  @media (max-width:560px){
+    .pm-add-grid{ grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
+    .pm-add-grid > :first-child, .pm-add-grid .btn{ grid-column:1 / -1; }
+    .sm-add-grid{ grid-template-columns:minmax(0,1fr) auto; }
+    .sm-add-grid > :first-child, .sm-add-grid .btn{ grid-column:auto; }
+  }
+
+  /* ---------- dropdown / picker panel ---------- */
+  .pk-backdrop{
+    position:fixed; inset:0; z-index:299; background:rgba(20,30,50,.45);
+    opacity:0; pointer-events:none; transition:opacity .2s;
+  }
+  .pk-backdrop.show{ opacity:1; pointer-events:auto; }
+  .pk-panel{
+    position:fixed; z-index:300; display:none; flex-direction:column; overflow:hidden;
+    background:#fff; border:1px solid var(--border); border-radius:10px; box-shadow:var(--shadow-pop);
+    outline:none;
+  }
+  .pk-panel.open{ display:flex; animation:pkIn .13s ease-out; }
+  .pk-panel.date-mode{ overflow-y:auto; }
+  .pk-panel.date-mode .pk-search-wrap, .pk-panel.date-mode .pk-list{ display:none; }
+  .pk-panel.list-mode .cal{ display:none; }
+  .pk-head{ display:none; }
+  .pk-search-wrap{ position:relative; padding:8px; border-bottom:1px solid var(--line); flex:none; }
+  .pk-search-wrap svg{ position:absolute; left:20px; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none; }
+  .pk-panel input.pk-search{ padding-left:36px; min-height:38px; font-size:14px; }
+  .pk-list{
+    position:relative; list-style:none; margin:0; padding:6px; flex:1 1 auto; min-height:0;
+    overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch;
+  }
+  .pk-opt{
+    display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:7px;
+    cursor:pointer; font-size:13.5px; line-height:1.3; user-select:none; -webkit-user-select:none;
+  }
+  .pk-opt + .pk-opt{ margin-top:1px; }
+  .pk-label{ flex:1; min-width:0; overflow-wrap:anywhere; }
+  .pk-hint{ flex:none; font-size:11.5px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .pk-check{ flex:none; display:flex; width:16px; color:var(--blue); visibility:hidden; }
+  .pk-opt.selected{ font-weight:700; color:var(--blue-dark); }
+  .pk-opt.selected .pk-check{ visibility:visible; }
+  .pk-opt.active{ background:var(--blue-light); }
+  .pk-opt mark{ background:none; color:var(--blue); font-weight:700; }
+  .pk-opt.custom{ color:var(--blue-dark); font-weight:600; }
+  .pk-plus{ display:flex; flex:none; width:22px; height:22px; border-radius:50%; background:var(--blue-light); color:var(--blue); align-items:center; justify-content:center; }
+  .pk-empty{ padding:18px 10px; text-align:center; color:var(--muted); font-size:13px; }
+
+  /* calendar */
+  .cal{ padding:10px 12px 12px; }
+  .cal-head{ display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:6px; }
+  .cal-nav, .cal-title, .cal-link, .cal-day, .cal-month{ font-family:inherit; border:none; background:none; cursor:pointer; color:var(--ink); }
+  .cal-nav{ width:36px; height:36px; border-radius:8px; display:grid; place-items:center; padding:0; }
+  .cal-title{ display:flex; align-items:center; gap:4px; font-size:14px; font-weight:700; padding:7px 10px; border-radius:8px; }
+  .cal-nav:hover, .cal-title:hover, .cal-month:hover, .cal-day:hover{ background:var(--soft); }
+  .cal-grid{ display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:2px; }
+  .cal-dow{ text-align:center; font-size:10.5px; font-weight:700; color:var(--muted); text-transform:uppercase; padding:6px 0; }
+  .cal-day{ height:36px; border-radius:8px; font-size:13px; font-variant-numeric:tabular-nums; padding:0; }
+  .cal-day.out{ color:#b8c0ca; }
+  .cal-day.today{ box-shadow:inset 0 0 0 1.5px var(--blue); color:var(--blue-dark); font-weight:700; }
+  .cal-day.sel, .cal-day.sel:hover, .cal-month.sel, .cal-month.sel:hover{ background:var(--blue); color:#fff; font-weight:700; box-shadow:none; }
+  .cal-months{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
+  .cal-month{ padding:13px 0; border-radius:8px; font-size:13.5px; }
+  .cal-month.cur{ box-shadow:inset 0 0 0 1.5px var(--blue); color:var(--blue-dark); font-weight:700; }
+  .cal-day:focus-visible, .cal-month:focus-visible, .cal-nav:focus-visible, .cal-title:focus-visible, .cal-link:focus-visible{ outline:2px solid var(--blue); outline-offset:1px; }
+  .cal-foot{ display:flex; justify-content:space-between; margin-top:8px; padding-top:8px; border-top:1px solid var(--line); }
+  .cal-link{ color:var(--blue); font-weight:700; font-size:13px; padding:7px 10px; border-radius:8px; }
+  .cal-link:hover{ background:var(--blue-light); }
+
+  /* bottom sheet on phones */
+  .pk-panel.sheet{
+    left:0; right:0; bottom:0; top:auto; width:auto;
+    max-height:88vh; max-height:88dvh; border:none; border-radius:18px 18px 0 0;
+    padding-bottom:env(safe-area-inset-bottom,0px);
+    animation:sheetUp .24s cubic-bezier(.2,.8,.2,1);
+  }
+  .pk-panel.sheet.tall{ top:calc(env(safe-area-inset-top,0px) + 8vh); max-height:none; }
+  .pk-panel.sheet .pk-head{ display:flex; align-items:center; gap:10px; padding:18px 16px 8px; position:relative; flex:none; }
+  .pk-grab{ position:absolute; top:7px; left:50%; transform:translateX(-50%); width:38px; height:4px; border-radius:4px; background:#d5dbe2; }
+  .pk-title{ flex:1; min-width:0; font-size:15.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pk-panel.sheet .pk-search-wrap{ padding:4px 16px 10px; }
+  .pk-panel.sheet .pk-search-wrap svg{ left:28px; }
+  .pk-panel.sheet input.pk-search{ font-size:16px; min-height:44px; }
+  .pk-panel.sheet .pk-list{ padding:6px 10px 14px; }
+  .pk-panel.sheet .pk-opt{ padding:12px; min-height:48px; font-size:15px; }
+  .pk-panel.sheet .pk-hint{ font-size:12.5px; }
+  .pk-panel.sheet .cal{ padding:4px 16px 16px; }
+  .pk-panel.sheet .cal-day{ height:44px; font-size:15px; }
+  .pk-panel.sheet .cal-link{ font-size:14.5px; padding:10px 12px; }
+
+  @keyframes pkIn{ from{ opacity:0; transform:translateY(-4px); } to{ opacity:1; transform:none; } }
+  @keyframes sheetUp{ from{ transform:translateY(100%); } to{ transform:none; } }
+  @media (prefers-reduced-motion:reduce){ *{ animation:none !important; transition:none !important; } }
+
+  /* ---------- phones ---------- */
+  @media (max-width:640px){
+    input[type="text"], input[type="number"], .picker-trigger,
+    .item-row input[type="text"], .item-row input[type="number"], .item-row .picker-trigger,
+    .pm-row input[type="text"], .pm-row .picker-trigger,
+    .pm-add input[type="text"], .pm-add .picker-trigger{ font-size:16px; } /* stops iOS zoom */
+    .card{ padding:14px; }
+    .ab-total b{ font-size:17px; }
+    .btn-generate{ font-size:15px; padding:13px 14px; }
+    .hide-sm{ display:none; }
+  }
+  @media (max-width:560px){
+    .modal-overlay{ padding:0; }
+    .modal{ max-width:none; max-height:none; height:100%; border-radius:0; padding-top:env(safe-area-inset-top,0px); }
+    .pm-headrow{ display:none; }
+    .pm-row{ grid-template-columns:minmax(0,1fr) minmax(0,1fr); padding:12px 0; gap:8px; }
+    .pm-name{ grid-column:1 / -1; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Invoice → Excel Generator</h1>
+    <p>Fill invoice details, then generate a ready‑to‑download Excel (.xlsx) file — works fully offline, no server needed.</p>
+    <p id="companyLine"></p>
+  </header>
+
+  <section class="card">
+    <div class="card-head"><h3>Invoice Details</h3></div>
+    <div class="grid">
+      <div class="field">
+        <label for="refNo">Reference No</label>
+        <input id="refNo" type="text" placeholder="e.g. 1" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="invDateBtn">Invoice Date</label>
+        <button type="button" class="picker-trigger" id="invDateBtn" aria-haspopup="dialog" aria-expanded="false">
+          <span class="pt-value"></span><span data-icon="cal"></span>
+        </button>
+        <input type="hidden" id="invDate">
+      </div>
+      <div class="field">
+        <label for="gstNo">GST No</label>
+        <input id="gstNo" type="text" class="upper" maxlength="15" placeholder="27ABCDE1234F1Z5" autocomplete="off" autocapitalize="characters" spellcheck="false">
+        <div class="hint" id="gstHint"></div>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="field">
+        <label for="partyName">Party A/c Name</label>
+        <div class="combo">
+          <input id="partyName" type="text" placeholder="Search and select party" autocomplete="off" spellcheck="false">
+          <button type="button" class="combo-btn" tabindex="-1" aria-label="Show all parties" data-icon="chev"></button>
+        </div>
+        <button type="button" class="link-btn" onclick="openPartyModal()">Manage party GSTIN / state ⚙</button>
+      </div>
+      <div class="field">
+        <label for="posBtn">Place of Supply</label>
+        <button type="button" class="picker-trigger" id="posBtn"><span class="pt-value"></span><span data-icon="chev"></span></button>
+        <input type="hidden" id="placeOfSupply">
+      </div>
+      <div class="field">
+        <label for="salesLedger">Sales Ledger</label>
+        <div class="combo">
+          <input id="salesLedger" type="text" value="GST Sales" placeholder="GST Sales" autocomplete="off" spellcheck="false">
+          <button type="button" class="combo-btn" tabindex="-1" aria-label="Show sales ledgers" data-icon="chev"></button>
+        </div>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="field">
+        <label for="homeBtn">Our State (for CGST/SGST vs IGST)</label>
+        <button type="button" class="picker-trigger" id="homeBtn"><span class="pt-value"></span><span data-icon="chev"></span></button>
+        <input type="hidden" id="homeState">
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h3>Delivery &amp; Order</h3><span class="badge">For Tally XML</span></div>
+    <p class="card-sub">All optional. For more than one delivery note or order, separate the numbers with commas.</p>
+    <div class="grid">
+      <div class="field">
+        <label for="dnNo">Delivery Note No <span class="opt">(optional)</span></label>
+        <input id="dnNo" type="text" placeholder="e.g. 4320 or 4253, 4254" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="field">
+        <label for="dnDateBtn">Delivery Note Date <span class="opt">(optional)</span></label>
+        <button type="button" class="picker-trigger" id="dnDateBtn" aria-haspopup="dialog" aria-expanded="false">
+          <span class="pt-value"></span><span data-icon="cal"></span>
+        </button>
+        <input type="hidden" id="dnDate">
+      </div>
+      <div class="field">
+        <label for="deliveryCharges">Delivery Charges <span class="opt">(optional)</span></label>
+        <div class="affix"><span>₹</span><input id="deliveryCharges" type="number" class="no-neg" placeholder="0" min="0" step="any" inputmode="decimal" style="padding-left:24px"></div>
+        <div class="hint" id="deliveryHint">+ 18% GST · Tally ledger “Delivery Charges (GST)”</div>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="field">
+        <label for="orderNo">Order No <span class="opt">(optional)</span></label>
+        <input id="orderNo" type="text" placeholder="e.g. PO ZPO 2609000293/26-27" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="field">
+        <label for="orderDateBtn">Order Date <span class="opt">(optional)</span></label>
+        <button type="button" class="picker-trigger" id="orderDateBtn" aria-haspopup="dialog" aria-expanded="false">
+          <span class="pt-value"></span><span data-icon="cal"></span>
+        </button>
+        <input type="hidden" id="orderDate">
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h3>Items</h3><span class="badge" id="taxMode"></span></div>
+    <div class="items-head" aria-hidden="true">
+      <span>#</span><span>Name of Item</span><span>Item Narration</span><span>Quantity</span><span>Unit</span>
+      <span>Rate</span><span>GST %</span><span class="r">Line Total</span><span></span>
+    </div>
+    <div id="itemsList"></div>
+    <div class="items-actions">
+      <button type="button" class="btn btn-add" onclick="addRow(true)">+ Add Item</button>
+      <button type="button" class="link-btn" onclick="openStockModal()">Manage stock items ⚙</button>
+    </div>
+
+    <div class="summary">
+      <div class="stat"><span>Amount</span><b id="sumAmount">₹0.00</b></div>
+      <div class="stat"><span>Delivery Charges</span><b id="sumDelivery">₹0.00</b></div>
+      <div class="stat"><span>SGST</span><b id="sumSgst">₹0.00</b></div>
+      <div class="stat"><span>CGST</span><b id="sumCgst">₹0.00</b></div>
+      <div class="stat"><span>IGST</span><b id="sumIgst">₹0.00</b></div>
+      <div class="stat grand"><span>Total Amount</span><b id="sumTotal">₹0.00</b></div>
+    </div>
+  </section>
+
+  <div class="action-bar">
+    <div class="card action-card">
+      <div class="ab-total"><span>Grand Total</span><b id="abTotal">₹0.00</b><small id="abCount">1 item</small></div>
+      <button type="button" class="btn btn-generate" onclick="generateExcel()"><span data-icon="send"></span><span>Submit the Invoice</span></button>
+      <p id="status" role="status" aria-live="polite"></p>
+    </div>
+  </div>
+  <footer>All calculations happen in your browser — no data leaves your device.</footer>
+
+</div>
+
+<div class="modal-overlay" id="partyModalOverlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pmTitle">
+    <div class="modal-head">
+      <h3 id="pmTitle">Party GSTIN &amp; State</h3>
+      <button type="button" class="icon-btn" onclick="closePartyModal()" aria-label="Close" data-icon="x"></button>
+    </div>
+    <div class="modal-tools">
+      <div class="search-box"><span data-icon="search"></span><input id="pmSearch" type="text" placeholder="Search party or GSTIN" autocomplete="off" spellcheck="false"></div>
+      <p class="modal-note">Set each party's GSTIN and State once — saved in this browser only. After that, selecting a party in "Party A/c Name" auto-fills GST No and Place of Supply.</p>
+    </div>
+    <div class="modal-body">
+      <div class="pm-row pm-headrow"><div>Party</div><div>GSTIN</div><div>State</div></div>
+      <div id="partyMasterList"></div>
+      <div class="pm-empty" id="pmEmpty" hidden>No party matches your search.</div>
+    </div>
+    <div class="modal-foot">
+      <span class="count" id="pmCount"></span>
+      <button type="button" class="btn btn-secondary" onclick="closePartyModal()">Cancel</button>
+      <button type="button" class="btn btn-primary" onclick="savePartyMasterFromModal()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="stockModalOverlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="smTitle" style="max-width:600px">
+    <div class="modal-head">
+      <h3 id="smTitle">Stock Items</h3>
+      <button type="button" class="icon-btn" onclick="closeStockModal()" aria-label="Close" data-icon="x"></button>
+    </div>
+    <div class="modal-tools">
+      <div class="pm-add">
+        <div class="pm-add-title">Add new stock item</div>
+        <div class="pm-add-grid sm-add-grid">
+          <input id="smNewName" type="text" placeholder="Item name as in Tally" autocomplete="off" spellcheck="false" aria-label="New stock item name">
+          <button type="button" class="btn btn-primary" id="smAddBtn">+ Add Item</button>
+        </div>
+        <div class="hint" id="smAddMsg"></div>
+      </div>
+      <div class="search-box"><span data-icon="search"></span><input id="smSearch" type="text" placeholder="Search stock items" autocomplete="off" spellcheck="false"></div>
+      <p class="modal-note">Items you add are saved in this browser only and appear in "Name of Item" straight away.</p>
+    </div>
+    <div class="modal-body">
+      <div id="stockItemList"></div>
+      <div class="pm-empty" id="smEmpty" hidden>No stock item matches your search.</div>
+    </div>
+    <div class="modal-foot">
+      <span class="count" id="smCount"></span>
+      <button type="button" class="btn btn-primary" onclick="closeStockModal()">Done</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const COMPANY = {
+  name: "Swati Industries",
+  gstin: "27AAGPS0417D1Z0",
+  state: "Maharashtra",
+  regName: "Maharashtra Registration"
+};
+
+const STATES = ["Maharashtra","Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh","Goa","Gujarat","Haryana","Himachal Pradesh","Jharkhand","Karnataka","Kerala","Madhya Pradesh","Manipur","Meghalaya","Mizoram","Nagaland","Odisha","Punjab","Rajasthan","Sikkim","Tamil Nadu","Telangana","Tripura","Uttar Pradesh","Uttarakhand","West Bengal","Delhi","Jammu and Kashmir","Ladakh","Chandigarh","Puducherry"];
+
+// Fixed party list (name, GSTIN). State is taken from the first two digits of the GSTIN.
+const PARTY_GSTIN_DATA = [
+["Aries Steel Corporation","27AIWPP9135H1ZH"],
+["Asif Pasha Power Machinery Services","37AAXFA2418D1ZG"],
+["Ayush Engineers","27AIKPA4850C1ZM"],
+["Beekay Engineers","27BJWPC3632E1Z7"],
+["Bright Industries","27AARFB0886C1ZC"],
+["Compair Systems","27AAAFC0331L1ZT"],
+["Deepa Traders","27AAHFD4415D1ZT"],
+["Denver Robotics & Automation","27ASZPD3568K1ZY"],
+["Ganesh Engineering","27ASOPP4503D1ZR"],
+["Globe Electrical Industries","27AADPG2439A1ZB"],
+["Hendo Industries","27AAQPD1919B1Z0"],
+["Ivna Bioenergy Private Limited","27AAFCI1291P1Z3"],
+["Jmd International","27BLKPK7278L1ZA"],
+["Lokmangal Agro Industries Limited","27AAACL7933N1Z0"],
+["Lokmangal Mauli Industries Ltd","27AABCL4457C1ZP"],
+["Lokmangalsugar Enthanol & Co-Generation Industries Ltd","27AAACL9193J1Z0"],
+["Mahesh Industries","27AOYPM9080L1ZT"],
+["Meet Engineering","24ATIPP9237F1ZG"],
+["M/s Tech-Fab Industries","27AALFT3650L1ZP"],
+["Nova Gas Dynamics Private Limited","27AAKCN0591N1ZW"],
+["Oceanglobe Container Services India Pvt Ltd","27AAACO0860H1ZM"],
+["Onkar Power Corporation Private Limited  Unit No.15","27AAECO2135P1Z5"],
+["Pioneer Engineering Corporation","24AAAFP1708N1ZB"],
+["Rameshwar Steel Works","27AABPP3025F1Z2"],
+["Samtek Engineering Tools","27AQPPG2415C1Z6"],
+["Siemag Industries","27AAAFS6685B1Z5"],
+["Sourabh Agency","27BYHPK7123A1ZQ"],
+["S P Air Control","27AMOPP4600K1ZQ"],
+["S.P.Air Tools Private Limited","27AAQCS6598G1ZH"],
+["S P Engineers","27AEVPP8979C1ZJ"],
+["Sps Intermodal Services (India) Private Limited","27AANCS4956R1Z7"],
+["Unique Fab Industries","27AGPPN1679P1ZD"],
+["Zodiac Tank Container Terminals Private Limited","27AABCZ1318C1ZP"]
+];
+
+const PARTY_GSTIN_SEED = {};
+const PARTIES = [];
+PARTY_GSTIN_DATA.forEach(([name, gstin])=>{
+  if(!(name in PARTY_GSTIN_SEED)) PARTIES.push(name);
+  PARTY_GSTIN_SEED[name] = gstin;
+});
+
+const GST_STATE_CODES = {
+  "01":"Jammu and Kashmir","02":"Himachal Pradesh","03":"Punjab","04":"Chandigarh",
+  "05":"Uttarakhand","06":"Haryana","07":"Delhi","08":"Rajasthan","09":"Uttar Pradesh",
+  "10":"Bihar","11":"Sikkim","12":"Arunachal Pradesh","13":"Nagaland","14":"Manipur",
+  "15":"Mizoram","16":"Tripura","17":"Meghalaya","18":"Assam","19":"West Bengal",
+  "20":"Jharkhand","21":"Odisha","22":"Chhattisgarh","23":"Madhya Pradesh","24":"Gujarat",
+  "26":"Dadra and Nagar Haveli and Daman and Diu","27":"Maharashtra","29":"Karnataka",
+  "30":"Goa","32":"Kerala","33":"Tamil Nadu","34":"Puducherry","36":"Telangana",
+  "37":"Andhra Pradesh","38":"Ladakh"
+};
+function deriveStateFromGSTIN(gstin){
+  if(!gstin || gstin.length < 2) return null;
+  return GST_STATE_CODES[gstin.substring(0,2)] || null;
+}
+
+const STOCK_ITEMS = [
+"1401","2017","2701 (Nos)","2710","2902 (Kgs)","3208","3214","3214 (Kgs)","3214 (Pkt)","3302 (Ltr)","3302 (Mlt)","3307","3307 (Litre)","3374","3401","3401 ( Litre)","3402","3402 (Litre)","3403","3403 (Nos)","3405","3408","3408 (Litre)","3505","3506","3506 (Nos)","3506 (Pkt)","3506 (Tins)","3506 (Tons)","3661 (Rolls)","3808","3808 (Litre)","3808 (Tin)","3814","3824 (Nos)","3824 (Set)","3902 (Nos)","3913","3916","3916 (Kgs)","3916 (Mtr)","3916 Nos","3917","3917 (Mtr)","3917 Nos","3917 Pkt","3917 (Roll)","3918","3919","3920","3920 (Bundle)","3920 (Rolls)","3923","3923 (Packet)","3924","3924 Nos 5%","3925","3926 (Nos)","3926 (Pairs)","4008","4009","4009 (Mtrs)","4010","40103290","4015","4015 Pairs","4016","4016 (Kgs)","4016 (Nos)","4128 (Nos)","4203","4616","4811","4818 (Roll)","5209","5310","6116 (Nos)","6116 (Pair) 5%","6201","6207 (18%)","6207 (5%)","621139 (Nos)","6307 (12%)","6307 (18%)","6307 (5%)","6330 (Nos)","6401","6401 (Prs) 5%","6403","6403 (5%)","6405","6468","6506","6804","6804 (Nos)","6805","6805 (Nos)","6805 (Roll)","6813","7004","7007","7014 (Lit)","7014 (Mlt)","7020","7208","7211 (Kgs)","7216 (Kgs)","7217","7217 (Kgs)","7217(Nos)","7220","7223","7224","7228 (Kgs)","7229","7306","73063090","7307","7307 Nos","7307 (Set)","7310","7312","7312 Mtr","7314 (Nos)","7315","7315 (Mtrs)","7315 (Nos)","7315 (Pkt)","7317 (Nos)","7318","7318 (Kgs)","7318 (Nos)","7319 (Mtrs)","7320","7323 12% (Nos)","7323 18% (Nos)","7324 (Nos)","7326","7326 5%","7408","7409 (Kgs)","7411","7411 (Mtrs)","7412","7604 (Nos)","7605","7605 (Kgs)","7608","7806","8024 (Nos)","8101","8201","8202","82031000","8203 (Nos)","8204","8204 (Nos)","8204 (Set)","8205","8205 Nos","8205 (Pair)","8207","8207 (Nos)","8207 (Set)","8208 (Nos)","8211 (Nos)","8244","8302","83022000","8302(Nos)","8304","8304 (Bundle)","83099030","8309 (Bundle)","8309 (KG)","8311 (Box)","8311 (Kgs)","8311 (Pkt)","8411","8413","8414","8415","8422","8424","8425 (Nos)","8456 (Mtrs)","8466","8466 (Nos)","8467","8468","8468 Nos","8479","8481","84811000","8481 (Nos)","8481 (Set)","8482","8482 (Nos)","8483","8483 (Kgs)","8483 (Nos)","8484","8487","8504","8515","8532","8532 (Nos)","8536","8536 Nos","8537","8538","8544","8544 (Coil)","8544 (Mtr)","8544 (Pkt)","8546","8566","8583 (Nos)","8636","8716","9004","9014","9017","9017 (inch)","9017 Nos","9017 (Set)","9020 (Nos)","9025","9026","9030","9031","9040","9405","9603","96031000","96031000 (5%) (Pcs)","9603 (Pcs)","9608","9803","9904 (Nos)","9965 (Delivery Charges)","GST SALES 18%","HT HEX BOLT M12 X 70"
+];
+
+const UNITS = ["Box","Bundle","Coil","inch","Kgs","ltr","Mlt","mtr","Nos","Pac","packet","pair","Pcs","Prs","roll","rolls","set","sqf","tin","tons"];
+
+/* ================= UI helpers ================= */
+const ICON = {
+  chev:'<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>',
+  cal:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>',
+  x:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  check:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 12.5 10 17.5 19 7"/></svg>',
+  search:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>',
+  left:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 6 9 12 15 18"/></svg>',
+  right:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>',
+  plus:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
+  send:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3L10 14"/><path d="M21 3l-7 18-4-7-7-4 18-7z"/></svg>',
+  download:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>'
+};
+function injectIcons(root){
+  root.querySelectorAll('[data-icon]').forEach(el=>{
+    if(!el.firstElementChild) el.innerHTML = ICON[el.dataset.icon] || '';
+  });
+}
+const esc = s => String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function round2(n){ return Math.round((n + Number.EPSILON) * 100) / 100; }
+const fmt = n => n.toLocaleString('en-IN',{minimumFractionDigits:2, maximumFractionDigits:2});
+const mqSheet = window.matchMedia('(max-width: 640px)');
+const isSheet = () => mqSheet.matches;
+
+const STATE_CODE = {};
+Object.keys(GST_STATE_CODES).forEach(c=>{ STATE_CODE[GST_STATE_CODES[c]] = c; });
+const STATE_OPTIONS = STATES.map(s=>({value:s, label:s, hint:STATE_CODE[s] || ''}));
+/* ---------- Stock items added by the user (saved in this browser). The party list is fixed. ---------- */
+const CUSTOM_STOCK_KEY = 'invoiceGen_customStockItems_v1';
+function loadCustomList(key){
+  try{
+    const v = JSON.parse(localStorage.getItem(key));
+    return Array.isArray(v) ? v.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim()) : [];
+  }catch(e){ return []; }
+}
+function saveCustomList(key, list){
+  try{ localStorage.setItem(key, JSON.stringify(list)); }catch(e){}
+}
+const sameName = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
+const CUSTOM_PARTIES = [];   // parties cannot be added any more
+let CUSTOM_STOCK = loadCustomList(CUSTOM_STOCK_KEY);
+CUSTOM_STOCK.forEach(n=>{ if(!STOCK_ITEMS.some(s => sameName(s, n))) STOCK_ITEMS.push(n); });
+
+let STOCK_OPTIONS = STOCK_ITEMS.map(s=>({value:s, label:s}));
+function rebuildStockOptions(){ STOCK_OPTIONS = STOCK_ITEMS.map(s=>({value:s, label:s})); }
+const LEDGER_OPTIONS = [{value:'GST Sales', label:'GST Sales'}];
+// Unit for Tally XML. "Auto" = use the stock item's own unit in Tally.
+const UNIT_OPTIONS = [{value:'', label:'Auto', hint:'As in Tally'}].concat(UNITS.map(u=>({value:u, label:u})));
+const UNIT_HINTS = [
+  [/\bnos\b/i,'Nos'], [/\bpcs\b/i,'Pcs'], [/\b(prs|pairs)\b/i,'Prs'], [/\bpair\b/i,'pair'], [/\bkgs?\b/i,'Kgs'],
+  [/\bmtrs?\b/i,'mtr'], [/\bsets?\b/i,'set'], [/\b(ltr|lit|litre)\b/i,'ltr'], [/\bmlt\b/i,'Mlt'],
+  [/\b(pkt|packet)\b/i,'packet'], [/\brolls\b/i,'rolls'], [/\broll\b/i,'roll'], [/\btins?\b/i,'tin'],
+  [/\btons\b/i,'tons'], [/\bbox\b/i,'Box'], [/\bbundle\b/i,'Bundle'], [/\bcoil\b/i,'Coil'], [/\binch\b/i,'inch']
+];
+// Items whose name does not show their real Tally unit (checked against Tally exports).
+// Keep in sync with TALLY_ITEM_UNITS in google_apps_script_download.gs
+const ITEM_UNITS = {
+  '3924 Nos 5%': 'Prs',     // Tally unit is Prs (Sales_198.xml)
+  '6116 (Pair) 5%': 'Prs',
+  '6307 (5%)': 'Pcs'        // Tally unit is Pcs (Sales_SI-150_26-27.xml)
+};
+function detectUnit(itemName){
+  const known = Object.keys(ITEM_UNITS).find(k => k.toLowerCase() === itemName.trim().toLowerCase());
+  if(known) return ITEM_UNITS[known];
+  for(const [re, unit] of UNIT_HINTS) if(re.test(itemName)) return unit;
+  return '';
+}
+const DELIVERY_GST_RATE = 18;   // Tally ledger "Delivery Charges (GST)" is 18%
+const GST_RATES = [
+  {value:'0', label:'0%', hint:'Nil / Exempt'}, {value:'5', label:'5%'}, {value:'12', label:'12%'},
+  {value:'18', label:'18%', hint:'Standard'}, {value:'28', label:'28%'}, {value:'40', label:'40%'}
+];
+
+document.getElementById('companyLine').innerText = COMPANY.name + '  •  GSTIN: ' + COMPANY.gstin + '  •  ' + COMPANY.state;
+
+/* ================= Picker: dropdown on desktop, bottom sheet on phones ================= */
+const pkEls = (()=>{
+  const backdrop = document.createElement('div');
+  backdrop.className = 'pk-backdrop';
+  const panel = document.createElement('div');
+  panel.className = 'pk-panel';
+  panel.tabIndex = -1;
+  panel.innerHTML =
+    '<div class="pk-head"><span class="pk-grab"></span><b class="pk-title"></b>' +
+    '<button type="button" class="icon-btn pk-close" aria-label="Close">' + ICON.x + '</button></div>' +
+    '<div class="pk-search-wrap">' + ICON.search +
+    '<input type="text" class="pk-search" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done"></div>' +
+    '<ul class="pk-list" role="listbox"></ul><div class="cal"></div>';
+  document.body.append(backdrop, panel);
+  return {
+    backdrop, panel,
+    title: panel.querySelector('.pk-title'),
+    close: panel.querySelector('.pk-close'),
+    searchWrap: panel.querySelector('.pk-search-wrap'),
+    search: panel.querySelector('.pk-search'),
+    list: panel.querySelector('.pk-list'),
+    cal: panel.querySelector('.cal')
+  };
+})();
+const pk = { cfg:null, sheet:false, mode:'list', query:'', items:[], active:-1, cal:null };
+
+function pkOpen(cfg){
+  if(pk.cfg) pkClose(false);
+  pk.cfg = cfg; pk.sheet = isSheet(); pk.mode = cfg.mode || 'list';
+  const P = pkEls.panel;
+  P.className = 'pk-panel open' + (pk.sheet ? ' sheet' : '') + (pk.mode === 'date' ? ' date-mode' : ' list-mode');
+  P.setAttribute('aria-label', cfg.title || '');
+  pkEls.title.textContent = cfg.title || '';
+  cfg.trigger.setAttribute('aria-expanded', 'true');
+  if(pk.sheet){
+    pkEls.backdrop.classList.add('show');
+    document.body.classList.add('no-scroll');
+  }
+  if(pk.mode === 'list'){
+    const many = cfg.options().length > 8;
+    const showSearch = pk.sheet ? (!!cfg.combo || many) : (!cfg.combo && many);
+    if(pk.sheet && showSearch) P.classList.add('tall');
+    pkEls.searchWrap.hidden = !showSearch;
+    pkEls.search.placeholder = cfg.searchPlaceholder || 'Search…';
+    pkEls.search.value = '';
+    pk.query = (cfg.combo && !pk.sheet) ? (cfg.initialQuery || '') : '';
+    pkRender();
+    pkPosition();
+    const sel = pkEls.list.querySelector('.pk-opt.selected');
+    pkEls.list.scrollTop = sel ? Math.max(0, sel.offsetTop - pkEls.list.clientHeight/2 + sel.offsetHeight/2) : 0;
+    if(showSearch && (!pk.sheet || cfg.focusSearch)) pkEls.search.focus({preventScroll:true});
+    else if(pk.sheet) P.focus({preventScroll:true});
+  } else {
+    calOpen();
+    pkPosition();
+    calFocus();
+  }
+}
+
+function pkClose(refocus){
+  if(!pk.cfg) return;
+  const cfg = pk.cfg;
+  pk.cfg = null;
+  pkEls.panel.className = 'pk-panel';
+  pkEls.panel.style.cssText = '';
+  pkEls.backdrop.classList.remove('show');
+  if(!document.querySelector('.modal-overlay.open')) document.body.classList.remove('no-scroll');
+  cfg.trigger.setAttribute('aria-expanded', 'false');
+  cfg.trigger.removeAttribute('aria-activedescendant');
+  if(refocus && cfg.trigger.isConnected) cfg.trigger.focus({preventScroll:true});
+}
+
+function pkPosition(){
+  if(!pk.cfg) return;
+  const P = pkEls.panel;
+  if(pk.sheet){ P.style.cssText = ''; return; }
+  const r = pk.cfg.anchor.getBoundingClientRect();
+  const vw = document.documentElement.clientWidth, vh = window.innerHeight;
+  if(r.bottom < 0 || r.top > vh){ pkClose(false); return; }
+  const w = Math.min(Math.max(r.width, pk.cfg.minWidth || 220), vw - 16);
+  const left = Math.min(Math.max(8, r.left), vw - w - 8);
+  const below = vh - r.bottom - 14, above = r.top - 14;
+  const want = pk.mode === 'date' ? 400 : 320;
+  const up = below < Math.min(want, 260) && above > below;
+  const maxH = Math.max(150, Math.min(want, up ? above : below));
+  P.style.left = left + 'px';
+  P.style.width = w + 'px';
+  P.style.maxHeight = maxH + 'px';
+  if(up){ P.style.top = 'auto'; P.style.bottom = (vh - r.top + 6) + 'px'; }
+  else  { P.style.bottom = 'auto'; P.style.top = (r.bottom + 6) + 'px'; }
+}
+
+function highlight(text, q){
+  if(!q) return esc(text);
+  const i = text.toLowerCase().indexOf(q);
+  if(i < 0) return esc(text);
+  return esc(text.slice(0,i)) + '<mark>' + esc(text.slice(i, i+q.length)) + '</mark>' + esc(text.slice(i+q.length));
+}
+
+function pkRender(){
+  const cfg = pk.cfg;
+  const all = cfg.options();
+  const raw = pk.query.trim();
+  const q = raw.toLowerCase();
+  let items = all;
+  if(q){
+    items = all
+      .filter(o => o.label.toLowerCase().includes(q) || (o.hint && o.hint.toLowerCase().includes(q)))
+      .map((o,i)=>({o, i, s: o.label.toLowerCase().startsWith(q) ? 0 : 1}))
+      .sort((a,b)=> a.s - b.s || a.i - b.i)
+      .map(x=>x.o);
+    if(cfg.free && !all.some(o => o.label.toLowerCase() === q)){
+      const custom = {value:raw, label:raw, custom:true};
+      items = pk.sheet ? [custom].concat(items) : items.concat([custom]);
+    }
+  }
+  pk.items = items;
+  const cur = String(cfg.value() ?? '');
+  const selIdx = items.findIndex(o => !o.custom && String(o.value) === cur);
+  if(q){
+    const firstReal = items.findIndex(o => !o.custom);
+    pk.active = firstReal >= 0 ? firstReal : (items.length ? 0 : -1);
+  } else {
+    pk.active = selIdx;
+  }
+  const L = pkEls.list;
+  if(!items.length){
+    L.innerHTML = '<li class="pk-empty">' + (all.length ? 'No matches found' : 'Nothing to show') + '</li>';
+    return;
+  }
+  L.innerHTML = items.map((o,i)=>{
+    const sel = i === selIdx;
+    const cls = 'pk-opt' + (o.custom ? ' custom' : '') + (sel ? ' selected' : '') + (i === pk.active ? ' active' : '');
+    const body = o.custom
+      ? '<span class="pk-plus">' + ICON.plus + '</span><span class="pk-label">Use “' + esc(o.label) + '”</span>'
+      : '<span class="pk-label">' + highlight(o.label, q) + '</span>' +
+        (o.hint ? '<span class="pk-hint">' + highlight(o.hint, q) + '</span>' : '') +
+        '<span class="pk-check">' + ICON.check + '</span>';
+    return '<li role="option" id="pk-o' + i + '" data-i="' + i + '" class="' + cls + '" aria-selected="' + sel + '">' + body + '</li>';
+  }).join('');
+}
+
+function pkSetActive(i, scroll){
+  const L = pkEls.list;
+  const prev = L.querySelector('.pk-opt.active');
+  if(prev) prev.classList.remove('active');
+  pk.active = i;
+  const el = L.querySelector('[data-i="' + i + '"]');
+  if(!el) return;
+  el.classList.add('active');
+  const owner = (pk.cfg.combo && !pk.sheet) ? pk.cfg.combo : pkEls.search;
+  owner.setAttribute('aria-activedescendant', el.id);
+  if(scroll){
+    if(el.offsetTop < L.scrollTop) L.scrollTop = el.offsetTop - 6;
+    else if(el.offsetTop + el.offsetHeight > L.scrollTop + L.clientHeight) L.scrollTop = el.offsetTop + el.offsetHeight - L.clientHeight + 6;
+  }
+}
+function pkMove(d){
+  const n = pk.items.length;
+  if(!n) return;
+  const i = pk.active < 0 ? (d > 0 ? 0 : n-1) : (pk.active + d + n) % n;
+  pkSetActive(i, true);
+}
+function pkPick(i){
+  const it = pk.items[i];
+  if(!it) return;
+  const cfg = pk.cfg;
+  pkClose(true);
+  cfg.onPick(it.value, it);
+}
+
+pkEls.list.addEventListener('pointerdown', e=>{ if(!pk.sheet) e.preventDefault(); });
+pkEls.list.addEventListener('click', e=>{
+  const li = e.target.closest('.pk-opt');
+  if(li) pkPick(+li.dataset.i);
+});
+pkEls.list.addEventListener('mousemove', e=>{
+  const li = e.target.closest('.pk-opt');
+  if(li && +li.dataset.i !== pk.active) pkSetActive(+li.dataset.i, false);
+});
+pkEls.search.addEventListener('input', ()=>{
+  pk.query = pkEls.search.value;
+  pkRender();
+  pkEls.list.scrollTop = 0;
+});
+pkEls.backdrop.addEventListener('click', ()=>pkClose(false));
+pkEls.close.addEventListener('click', ()=>pkClose(true));
+
+document.addEventListener('pointerdown', e=>{
+  if(!pk.cfg || pk.sheet) return;
+  if(pkEls.panel.contains(e.target) || pk.cfg.anchor.contains(e.target)) return;
+  pkClose(false);
+}, true);
+pkEls.panel.addEventListener('focusout', e=>{
+  if(!pk.cfg || pk.sheet) return;
+  const to = e.relatedTarget;
+  if(!to || pkEls.panel.contains(to) || pk.cfg.anchor.contains(to)) return;
+  pkClose(false);
+});
+window.addEventListener('resize', ()=>{
+  if(!pk.cfg) return;
+  if(pk.sheet !== isSheet()){ pkClose(false); return; }
+  pkPosition();
+});
+window.addEventListener('scroll', e=>{
+  if(pk.cfg && !pk.sheet && !pkEls.panel.contains(e.target)) pkPosition();
+}, true);
+
+document.addEventListener('keydown', e=>{
+  if(!pk.cfg){
+    if(e.key === 'Escape' && document.getElementById('partyModalOverlay').classList.contains('open')) closePartyModal();
+    if(e.key === 'Escape' && document.getElementById('stockModalOverlay').classList.contains('open')) closeStockModal();
+    return;
+  }
+  if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); pkClose(true); return; }
+  if(e.key === 'Tab' && !pk.sheet && pk.mode === 'list'){ pkClose(false); return; }
+  if(pk.mode !== 'list') return;
+  if(e.key === 'ArrowDown'){ e.preventDefault(); pkMove(1); }
+  else if(e.key === 'ArrowUp'){ e.preventDefault(); pkMove(-1); }
+  else if(e.key === 'Enter'){
+    if(pk.active >= 0){ e.preventDefault(); pkPick(pk.active); }
+    else if(pk.cfg.combo){ e.preventDefault(); pkClose(true); }
+  }
+}, true);
+
+/* ---- dropdown (fixed list) bound to a trigger button ---- */
+function bindSelect(btn, cfg){
+  btn.setAttribute('aria-haspopup', 'listbox');
+  btn.setAttribute('aria-expanded', 'false');
+  btn.addEventListener('click', ()=>{
+    if(pk.cfg && pk.cfg.trigger === btn){ pkClose(true); return; }
+    btn.classList.remove('invalid');
+    pkOpen({
+      anchor:btn, trigger:btn, title:cfg.title, options:cfg.options, value:cfg.get,
+      searchPlaceholder:cfg.searchPlaceholder, minWidth:cfg.minWidth, onPick:v=>cfg.set(v)
+    });
+  });
+  btn.addEventListener('keydown', e=>{
+    if((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !(pk.cfg && pk.cfg.trigger === btn)){
+      e.preventDefault(); btn.click();
+    }
+  });
+}
+function makeStateSelect(hiddenId, btnId, title){
+  const hidden = document.getElementById(hiddenId);
+  const btn = document.getElementById(btnId);
+  const set = (v, silent)=>{
+    hidden.value = v;
+    btn.querySelector('.pt-value').textContent = v;
+    if(!silent) hidden.dispatchEvent(new Event('change'));
+  };
+  bindSelect(btn, {title, options:()=>STATE_OPTIONS, get:()=>hidden.value, set, searchPlaceholder:'Search state or code…', minWidth:260});
+  hidden._set = set;
+}
+function setSelectValue(id, v, silent){ document.getElementById(id)._set(v, silent); }
+
+/* ---- combo box: type to search, pick from the list (strict = must pick from the list) ---- */
+const COMBOS = [];
+function bindCombo(input, cfg){
+  const wrap = input.closest('.combo');
+  const btn = wrap.querySelector('.combo-btn');
+  input.setAttribute('role', 'combobox');
+  input.setAttribute('aria-autocomplete', 'list');
+  input.setAttribute('aria-expanded', 'false');
+  const isOpen = ()=> pk.cfg && pk.cfg.combo === input;
+  const open = query => pkOpen({
+    anchor:wrap, trigger:input, combo:input, free:!cfg.strict, focusSearch:true,
+    title:cfg.title, options:cfg.options, value:()=>input.value.trim(),
+    initialQuery:query, searchPlaceholder:cfg.searchPlaceholder, minWidth:cfg.minWidth || 260,
+    onPick:v=>{
+      input.value = v;
+      input.classList.remove('invalid');
+      input.dispatchEvent(new Event('change', {bubbles:true}));
+    }
+  });
+  input.addEventListener('click', ()=>{ if(!isOpen()) open(''); });
+  input.addEventListener('input', ()=>{
+    if(input.readOnly) return;
+    if(!isOpen()) open(input.value);
+    else { pk.query = input.value; pkRender(); pkEls.list.scrollTop = 0; }
+  });
+  input.addEventListener('keydown', e=>{
+    if(isOpen()) return;
+    if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){ e.preventDefault(); open(''); }
+  });
+  input.addEventListener('blur', ()=>setTimeout(()=>{
+    if(isOpen() && !pk.sheet && document.activeElement !== input && !pkEls.panel.contains(document.activeElement)) pkClose(false);
+  }, 0));
+  if(cfg.strict){
+    // Typing is only for searching: anything not picked from the list is cleared when focus leaves.
+    input.addEventListener('blur', ()=>setTimeout(()=>{
+      if(isOpen() || document.activeElement === input || pkEls.panel.contains(document.activeElement)) return;
+      const v = input.value.trim();
+      if(!v) return;
+      const hit = cfg.options().find(o => o.label.toLowerCase() === v.toLowerCase());
+      if(hit){
+        if(input.value !== hit.value){ input.value = hit.value; input.dispatchEvent(new Event('change', {bubbles:true})); }
+      } else {
+        input.value = '';
+        input.dispatchEvent(new Event('change', {bubbles:true}));
+      }
+    }, 80));
+  }
+  btn.addEventListener('pointerdown', e=>e.preventDefault());
+  btn.addEventListener('click', ()=>{
+    if(isOpen()){ pkClose(true); return; }
+    if(!isSheet()) input.focus({preventScroll:true});
+    open('');
+  });
+  input.readOnly = isSheet();
+  COMBOS.push(input);
+}
+function syncCombos(){
+  const m = isSheet();
+  for(let i = COMBOS.length - 1; i >= 0; i--){
+    if(!COMBOS[i].isConnected){ COMBOS.splice(i,1); continue; }
+    COMBOS[i].readOnly = m;
+  }
+  pkClose(false);
+}
+if(mqSheet.addEventListener) mqSheet.addEventListener('change', syncCombos);
+else mqSheet.addListener(syncCombos);
+
+/* ---- date picker ---- */
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DOW = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+const WEEKDAY = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const pad2 = n => String(n).padStart(2,'0');
+function isoOf(d){ return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate()); }
+function parseISO(s){ if(!s) return null; const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); }
+function addMonths(d, n){
+  const t = new Date(d.getFullYear(), d.getMonth() + n, 1);
+  t.setDate(Math.min(d.getDate(), new Date(t.getFullYear(), t.getMonth()+1, 0).getDate()));
+  return t;
+}
+function calOpen(){
+  const base = parseISO(pk.cfg.value()) || new Date();
+  pk.cal = { view:'days', cursor:new Date(base.getFullYear(), base.getMonth(), base.getDate()) };
+  calRender();
+}
+function calRender(){
+  const c = pk.cal, selIso = pk.cfg.value(), today = new Date(), todayIso = isoOf(today);
+  const y = c.cursor.getFullYear(), m = c.cursor.getMonth();
+  let h = '';
+  if(c.view === 'days'){
+    h += '<div class="cal-head"><button type="button" class="cal-nav" data-nav="-1" aria-label="Previous month">' + ICON.left + '</button>' +
+         '<button type="button" class="cal-title" data-act="months" aria-label="Choose month and year">' + MONTHS[m] + ' ' + y + ICON.chev + '</button>' +
+         '<button type="button" class="cal-nav" data-nav="1" aria-label="Next month">' + ICON.right + '</button></div>';
+    h += '<div class="cal-grid">' + DOW.map(d=>'<span class="cal-dow">' + d + '</span>').join('');
+    const start = new Date(y, m, 1 - new Date(y, m, 1).getDay());
+    const curIso = isoOf(c.cursor);
+    for(let i = 0; i < 42; i++){
+      const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+      const iso = isoOf(d);
+      let cls = 'cal-day';
+      if(d.getMonth() !== m) cls += ' out';
+      if(iso === todayIso) cls += ' today';
+      if(iso === selIso) cls += ' sel';
+      h += '<button type="button" class="' + cls + '" data-date="' + iso + '" tabindex="' + (iso === curIso ? 0 : -1) + '"' +
+           ' aria-label="' + WEEKDAY[d.getDay()] + ', ' + d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear() + '"' +
+           (iso === selIso ? ' aria-current="date"' : '') + '>' + d.getDate() + '</button>';
+    }
+    h += '</div>';
+  } else {
+    const sel = parseISO(selIso);
+    h += '<div class="cal-head"><button type="button" class="cal-nav" data-nav="-1" aria-label="Previous year">' + ICON.left + '</button>' +
+         '<button type="button" class="cal-title" data-act="days" aria-label="Back to days">' + y + '</button>' +
+         '<button type="button" class="cal-nav" data-nav="1" aria-label="Next year">' + ICON.right + '</button></div>';
+    h += '<div class="cal-months">' + MONTHS.map((name,i)=>{
+      let cls = 'cal-month';
+      if(sel && sel.getFullYear() === y && sel.getMonth() === i) cls += ' sel';
+      if(today.getFullYear() === y && today.getMonth() === i) cls += ' cur';
+      return '<button type="button" class="' + cls + '" data-month="' + i + '" tabindex="' + (i === m ? 0 : -1) + '">' + name.slice(0,3) + '</button>';
+    }).join('') + '</div>';
+  }
+  h += '<div class="cal-foot"><button type="button" class="cal-link" data-act="today">Today</button>' +
+       (pk.cfg.clearable && selIso ? '<button type="button" class="cal-link" data-act="clear">Clear</button>' : '') +
+       '<button type="button" class="cal-link" data-act="close">Close</button></div>';
+  pkEls.cal.innerHTML = h;
+}
+function calFocus(){
+  const b = pkEls.cal.querySelector(pk.cal.view === 'days' ? '.cal-day[tabindex="0"]' : '.cal-month[tabindex="0"]');
+  if(b) b.focus({preventScroll:true});
+}
+function calPick(iso){
+  const cfg = pk.cfg;
+  pkClose(true);
+  cfg.onPick(iso);
+}
+pkEls.cal.addEventListener('click', e=>{
+  const b = e.target.closest('button');
+  if(!b || !pk.cfg) return;
+  const c = pk.cal;
+  if(b.dataset.date){ calPick(b.dataset.date); return; }
+  if(b.dataset.nav){
+    const n = +b.dataset.nav;
+    c.cursor = c.view === 'days' ? addMonths(c.cursor, n) : addMonths(c.cursor, n * 12);
+    calRender();
+    const same = pkEls.cal.querySelector('[data-nav="' + n + '"]');
+    if(same) same.focus({preventScroll:true});
+    return;
+  }
+  if(b.dataset.month){
+    c.cursor = addMonths(new Date(c.cursor.getFullYear(), 0, c.cursor.getDate()), +b.dataset.month);
+    c.view = 'days'; calRender(); calFocus(); return;
+  }
+  const act = b.dataset.act;
+  if(act === 'months'){ c.view = 'months'; calRender(); calFocus(); }
+  else if(act === 'days'){ c.view = 'days'; calRender(); calFocus(); }
+  else if(act === 'today'){ calPick(isoOf(new Date())); }
+  else if(act === 'clear'){ calPick(''); }
+  else if(act === 'close'){ pkClose(true); }
+});
+pkEls.cal.addEventListener('keydown', e=>{
+  const c = pk.cal;
+  if(!c) return;
+  if(c.view === 'days' && e.target.classList.contains('cal-day')){
+    const step = {ArrowLeft:-1, ArrowRight:1, ArrowUp:-7, ArrowDown:7}[e.key];
+    if(step){
+      e.preventDefault();
+      c.cursor = new Date(c.cursor.getFullYear(), c.cursor.getMonth(), c.cursor.getDate() + step);
+    } else if(e.key === 'PageUp' || e.key === 'PageDown'){
+      e.preventDefault();
+      c.cursor = addMonths(c.cursor, (e.key === 'PageUp' ? -1 : 1) * (e.shiftKey ? 12 : 1));
+    } else return;
+    calRender(); calFocus();
+  } else if(c.view === 'months' && e.target.classList.contains('cal-month')){
+    const step = {ArrowLeft:-1, ArrowRight:1, ArrowUp:-3, ArrowDown:3}[e.key];
+    if(!step) return;
+    e.preventDefault();
+    const m = Math.min(11, Math.max(0, c.cursor.getMonth() + step));
+    c.cursor = new Date(c.cursor.getFullYear(), m, 1);
+    calRender(); calFocus();
+  }
+});
+function bindDate(btn, hidden, title, clearable){
+  const render = ()=>{
+    const span = btn.querySelector('.pt-value');
+    const d = parseISO(hidden.value);
+    if(d){
+      span.innerHTML = pad2(d.getDate()) + '/' + pad2(d.getMonth()+1) + '/' + d.getFullYear() + '<span class="pt-sub">' + WEEKDAY[d.getDay()] + '</span>';
+      span.classList.remove('placeholder');
+    } else {
+      span.textContent = 'DD/MM/YYYY';
+      span.classList.add('placeholder');
+    }
+  };
+  btn.addEventListener('click', ()=>{
+    if(pk.cfg && pk.cfg.trigger === btn){ pkClose(true); return; }
+    btn.classList.remove('invalid');
+    pkOpen({
+      anchor:btn, trigger:btn, mode:'date', title, clearable:!!clearable, minWidth:300, value:()=>hidden.value,
+      onPick:v=>{ hidden.value = v; render(); hidden.dispatchEvent(new Event('change')); }
+    });
+  });
+  btn.addEventListener('keydown', e=>{
+    if((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !(pk.cfg && pk.cfg.trigger === btn)){ e.preventDefault(); btn.click(); }
+  });
+  hidden._render = render;
+  render();
+}
+
+/* ---------- Party Master (GSTIN + State per party), pre-filled from your data, editable & saved locally in this browser ---------- */
+const PM_STORAGE_KEY = 'invoiceGen_partyMaster_v2';
+
+function loadPartyMaster(){
+  let saved = {};
+  try{ saved = JSON.parse(localStorage.getItem(PM_STORAGE_KEY)) || {}; }catch(e){ saved = {}; }
+  const master = {};
+  PARTIES.forEach(name=>{
+    const seedGstin = PARTY_GSTIN_SEED[name] || '';
+    const seedState = deriveStateFromGSTIN(seedGstin) || COMPANY.state;
+    master[name] = Object.assign({ gstin:seedGstin, state:seedState }, saved[name] || {});
+  });
+  return master;
+}
+function savePartyMasterToStorage(master){
+  try{ localStorage.setItem(PM_STORAGE_KEY, JSON.stringify(master)); }catch(e){}
+}
+let PARTY_MASTER = loadPartyMaster();
+const partyOptions = () => PARTIES.map(n=>({value:n, label:n, hint:(PARTY_MASTER[n] && PARTY_MASTER[n].gstin) || ''}));
+
+const pmList = document.getElementById('partyMasterList');
+const pmSearch = document.getElementById('pmSearch');
+
+function makePmRow(name){
+  const p = PARTY_MASTER[name] || {gstin:'', state:COMPANY.state};
+  const row = document.createElement('div');
+  row.className = 'pm-row';
+  row.innerHTML =
+    '<div class="pm-name"><span class="pm-label"></span></div>' +
+    '<input type="text" class="pm-gstin upper" maxlength="15" placeholder="GSTIN" autocomplete="off" spellcheck="false" autocapitalize="characters">' +
+    '<button type="button" class="picker-trigger pm-state" aria-haspopup="listbox" aria-expanded="false"><span class="pt-value"></span><span data-icon="chev"></span></button>';
+  row.querySelector('.pm-label').textContent = name;
+  const g = row.querySelector('.pm-gstin');
+  g.value = p.gstin || '';
+  g.dataset.party = name;
+  g.setAttribute('aria-label', 'GSTIN for ' + name);
+  const s = row.querySelector('.pm-state');
+  s.dataset.party = name;
+  s.dataset.value = p.state || COMPANY.state;
+  s.querySelector('.pt-value').textContent = s.dataset.value;
+  s.setAttribute('aria-label', 'State for ' + name);
+  injectIcons(row);
+  return row;
+}
+
+function openPartyModal(){
+  pkClose(false);
+  pmList.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  PARTIES.forEach(name => frag.appendChild(makePmRow(name)));
+  pmList.appendChild(frag);
+  pmSearch.value = '';
+  pmFilter();
+  document.getElementById('partyModalOverlay').classList.add('open');
+  document.body.classList.add('no-scroll');
+  document.querySelector('#partyModalOverlay .modal-body').scrollTop = 0;
+  if(!isSheet()) pmSearch.focus();
+}
+function closePartyModal(){
+  pkClose(false);
+  document.getElementById('partyModalOverlay').classList.remove('open');
+  document.body.classList.remove('no-scroll');
+}
+function pmFilter(){
+  const q = pmSearch.value.trim().toLowerCase();
+  let shown = 0;
+  pmList.querySelectorAll('.pm-row').forEach(row=>{
+    const name = row.querySelector('.pm-state').dataset.party.toLowerCase();
+    const gstin = row.querySelector('.pm-gstin').value.toLowerCase();
+    const hit = !q || name.includes(q) || gstin.includes(q);
+    row.hidden = !hit;
+    if(hit) shown++;
+  });
+  document.getElementById('pmEmpty').hidden = shown > 0;
+  document.getElementById('pmCount').textContent = shown + (shown === 1 ? ' party' : ' parties');
+}
+pmSearch.addEventListener('input', pmFilter);
+pmList.addEventListener('click', e=>{
+  const b = e.target.closest('.pm-state');
+  if(!b) return;
+  if(pk.cfg && pk.cfg.trigger === b){ pkClose(true); return; }
+  pkOpen({
+    anchor:b, trigger:b, title:'State — ' + b.dataset.party, options:()=>STATE_OPTIONS,
+    value:()=>b.dataset.value, searchPlaceholder:'Search state or code…', minWidth:240,
+    onPick:v=>{ b.dataset.value = v; b.querySelector('.pt-value').textContent = v; }
+  });
+});
+pmList.addEventListener('input', e=>{
+  const g = e.target.closest('.pm-gstin');
+  if(!g) return;
+  upperKeepCaret(g);
+  const st = deriveStateFromGSTIN(g.value);
+  if(st && STATES.includes(st)){
+    const b = g.parentElement.querySelector('.pm-state');
+    b.dataset.value = st;
+    b.querySelector('.pt-value').textContent = st;
+  }
+});
+function savePartyMasterFromModal(){
+  pmList.querySelectorAll('.pm-row').forEach(row=>{
+    const gstinInp = row.querySelector('.pm-gstin');
+    const stateBtn = row.querySelector('.pm-state');
+    if(!gstinInp || !stateBtn) return;
+    const name = gstinInp.dataset.party;
+    PARTY_MASTER[name] = { gstin: gstinInp.value.trim().toUpperCase(), state: stateBtn.dataset.value };
+  });
+  savePartyMasterToStorage(PARTY_MASTER);
+  closePartyModal();
+  autoFillFromParty();
+  setStatus('ok', '✓ Party details saved on this device.');
+}
+document.getElementById('partyModalOverlay').addEventListener('click', function(e){
+  if(e.target === this) closePartyModal();
+});
+
+/* ---------- Stock items (add your own, saved in this browser) ---------- */
+const smList = document.getElementById('stockItemList');
+const smSearch = document.getElementById('smSearch');
+const smNewName = document.getElementById('smNewName');
+function smAddMsg(kind, msg){ const h = document.getElementById('smAddMsg'); h.className = 'hint' + (kind ? ' ' + kind : ''); h.textContent = msg; }
+function makeSmRow(name){
+  const row = document.createElement('div');
+  row.className = 'sm-row';
+  row.dataset.name = name;
+  row.innerHTML = '<span class="nm"></span>';
+  row.querySelector('.nm').textContent = name;
+  if(CUSTOM_STOCK.some(n => sameName(n, name))){
+    row.insertAdjacentHTML('beforeend', '<span class="tag-new">Added</span><button type="button" class="row-del sm-del">Remove</button>');
+    row.querySelector('.sm-del').setAttribute('aria-label', 'Remove ' + name);
+  }
+  return row;
+}
+function openStockModal(){
+  pkClose(false);
+  smList.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  STOCK_ITEMS.filter(n => CUSTOM_STOCK.some(c => sameName(c, n))).reverse()
+    .concat(STOCK_ITEMS.filter(n => !CUSTOM_STOCK.some(c => sameName(c, n))))
+    .forEach(name => frag.appendChild(makeSmRow(name)));
+  smList.appendChild(frag);
+  smSearch.value = ''; smNewName.value = ''; smNewName.classList.remove('invalid'); smAddMsg('', '');
+  smFilter();
+  document.getElementById('stockModalOverlay').classList.add('open');
+  document.body.classList.add('no-scroll');
+  document.querySelector('#stockModalOverlay .modal-body').scrollTop = 0;
+  if(!isSheet()) smNewName.focus();
+}
+function closeStockModal(){
+  pkClose(false);
+  document.getElementById('stockModalOverlay').classList.remove('open');
+  document.body.classList.remove('no-scroll');
+}
+function smFilter(){
+  const q = smSearch.value.trim().toLowerCase();
+  let shown = 0;
+  smList.querySelectorAll('.sm-row').forEach(row=>{
+    const hit = !q || row.dataset.name.toLowerCase().includes(q);
+    row.hidden = !hit;
+    if(hit) shown++;
+  });
+  document.getElementById('smEmpty').hidden = shown > 0;
+  document.getElementById('smCount').textContent = shown + (shown === 1 ? ' item' : ' items') +
+    (CUSTOM_STOCK.length ? ' · ' + CUSTOM_STOCK.length + ' added by you' : '');
+}
+function addNewStockItem(){
+  const name = smNewName.value.trim().replace(/\s+/g, ' ');
+  if(!name){ smNewName.classList.add('invalid'); smNewName.focus(); smAddMsg('err', 'Please enter the stock item name.'); return; }
+  const existing = STOCK_ITEMS.find(s => sameName(s, name));
+  if(existing){ smNewName.classList.add('invalid'); smAddMsg('err', '“' + existing + '” is already in the list.'); return; }
+  STOCK_ITEMS.push(name);
+  CUSTOM_STOCK.push(name);
+  saveCustomList(CUSTOM_STOCK_KEY, CUSTOM_STOCK);
+  rebuildStockOptions();
+  const row = makeSmRow(name);
+  row.classList.add('just-added');
+  smList.insertBefore(row, smList.firstChild);
+  smSearch.value = '';
+  smFilter();
+  document.querySelector('#stockModalOverlay .modal-body').scrollTop = 0;
+  smNewName.value = '';
+  smAddMsg('ok', '✓ “' + name + '” added — you can now select it in Name of Item.');
+  if(!isSheet()) smNewName.focus();
+}
+smList.addEventListener('click', e=>{
+  const del = e.target.closest('.sm-del');
+  if(!del) return;
+  const row = del.closest('.sm-row');
+  const name = row.dataset.name;
+  if(!confirm('Remove “' + name + '” from your stock items?')) return;
+  const i = STOCK_ITEMS.findIndex(s => sameName(s, name));
+  if(i >= 0) STOCK_ITEMS.splice(i, 1);
+  CUSTOM_STOCK = CUSTOM_STOCK.filter(n => !sameName(n, name));
+  saveCustomList(CUSTOM_STOCK_KEY, CUSTOM_STOCK);
+  rebuildStockOptions();
+  row.remove();
+  smFilter();
+  smAddMsg('ok', '“' + name + '” removed.');
+});
+smSearch.addEventListener('input', smFilter);
+smNewName.addEventListener('input', ()=>smNewName.classList.remove('invalid'));
+smNewName.addEventListener('keydown', e=>{ if(e.key === 'Enter'){ e.preventDefault(); addNewStockItem(); } });
+document.getElementById('smAddBtn').addEventListener('click', addNewStockItem);
+document.getElementById('stockModalOverlay').addEventListener('click', function(e){
+  if(e.target === this) closeStockModal();
+});
+
+/* ---------- GST No ---------- */
+const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+const gstNoEl = document.getElementById('gstNo');
+function upperKeepCaret(el){
+  const up = el.value.toUpperCase();
+  if(up === el.value) return;
+  const s = el.selectionStart, e = el.selectionEnd;
+  el.value = up;
+  try{ el.setSelectionRange(s, e); }catch(err){}
+}
+function updateGstHint(){
+  const v = gstNoEl.value.trim().toUpperCase();
+  const hint = document.getElementById('gstHint');
+  if(!v){ hint.textContent = ''; hint.className = 'hint'; return; }
+  const st = deriveStateFromGSTIN(v);
+  if(GSTIN_RE.test(v)){
+    hint.className = 'hint ok';
+    hint.textContent = '✓ Valid GSTIN' + (st ? ' · ' + st : '');
+  } else if(v.length < 15){
+    hint.className = 'hint';
+    hint.textContent = (st ? st + ' · ' : '') + v.length + '/15 characters';
+  } else {
+    hint.className = 'hint warn';
+    hint.textContent = 'Please check the GSTIN format';
+  }
+}
+gstNoEl.addEventListener('input', ()=>{ upperKeepCaret(gstNoEl); updateGstHint(); });
+
+function autoFillFromParty(){
+  const nameRaw = document.getElementById('partyName').value.trim();
+  if(!nameRaw) return;
+  const match = PARTIES.find(p => p.toLowerCase() === nameRaw.toLowerCase());
+  if(!match) return;
+  const p = PARTY_MASTER[match];
+  if(!p) return;
+  if(p.gstin){ gstNoEl.value = p.gstin; gstNoEl.classList.remove('invalid'); updateGstHint(); }
+  if(p.state) setSelectValue('placeOfSupply', p.state, true);
+  updateTotals();
+}
+document.getElementById('partyName').addEventListener('input', autoFillFromParty);
+document.getElementById('partyName').addEventListener('change', autoFillFromParty);
+
+/* ---------- Items ---------- */
+const itemsList = document.getElementById('itemsList');
+const getRows = () => Array.from(itemsList.querySelectorAll('.item-row'));
+
+function addRow(fromUser){
+  const row = document.createElement('div');
+  row.className = 'item-row';
+  row.innerHTML =
+    '<div class="ir-no"><span class="ir-num"></span></div>' +
+    '<div class="ir-item"><span class="lbl m-label">Name of Item</span><div class="combo">' +
+      '<input type="text" class="itemName" placeholder="Type or select" autocomplete="off" spellcheck="false" aria-label="Name of item">' +
+      '<button type="button" class="combo-btn" tabindex="-1" aria-label="Show all items" data-icon="chev"></button></div></div>' +
+    '<div class="ir-narr"><span class="lbl m-label">Item Narration</span>' +
+      '<input type="text" class="itemNarration" placeholder="e.g. Tube light LED 50W" autocomplete="off" aria-label="Item narration"></div>' +
+    '<div class="ir-qty"><span class="lbl m-label">Quantity</span>' +
+      '<input type="number" class="qty no-neg" value="1" min="0" step="any" inputmode="decimal" aria-label="Quantity"></div>' +
+    '<div class="ir-unit"><span class="lbl m-label">Unit</span>' +
+      '<button type="button" class="picker-trigger unit-trigger" aria-label="Unit"><span class="pt-value">Auto</span><span data-icon="chev"></span></button>' +
+      '<input type="hidden" class="unit" value=""></div>' +
+    '<div class="ir-rate"><span class="lbl m-label">Rate</span><div class="affix"><span>₹</span>' +
+      '<input type="number" class="rate no-neg" placeholder="0" min="0" step="any" inputmode="decimal" aria-label="Rate"></div></div>' +
+    '<div class="ir-gst"><span class="lbl m-label">GST %</span>' +
+      '<button type="button" class="picker-trigger gst-trigger" aria-label="GST rate"><span class="pt-value">18%</span><span data-icon="chev"></span></button>' +
+      '<input type="hidden" class="gstRate" value="18"></div>' +
+    '<div class="ir-amt"><span class="lbl m-label">Line Total</span><div class="ir-total"></div></div>' +
+    '<div class="ir-x"><button type="button" class="btn-x" data-icon="x"></button></div>';
+  itemsList.appendChild(row);
+  injectIcons(row);
+
+  const item = row.querySelector('.itemName');
+  bindCombo(item, {title:'Name of Item', options:()=>STOCK_OPTIONS, searchPlaceholder:'Search item / HSN…', minWidth:240});
+  item.addEventListener('change', updateTotals);
+
+  const unitHidden = row.querySelector('.unit');
+  const unitBtn = row.querySelector('.unit-trigger');
+  const setUnit = (v, manual)=>{
+    unitHidden.value = v;
+    unitBtn.querySelector('.pt-value').textContent = v || 'Auto';
+    if(manual) row._unitManual = true;
+  };
+  bindSelect(unitBtn, {title:'Unit', options:()=>UNIT_OPTIONS, get:()=>unitHidden.value, set:v=>setUnit(v, true), minWidth:180, searchPlaceholder:'Search unit…'});
+  row._setUnit = setUnit;
+  // Fill the unit from the item name, e.g. "8204 (Nos)" → Nos, "4015 Pairs" → Prs (until the user picks one)
+  const autoUnit = ()=>{ if(!row._unitManual) setUnit(detectUnit(item.value), false); };
+  item.addEventListener('change', autoUnit);
+  item.addEventListener('input', autoUnit);
+
+  ['qty','rate'].forEach(c=>{
+    const inp = row.querySelector('.' + c);
+    inp.addEventListener('input', updateTotals);
+    // Select the value on focus so typing replaces it (the first mouseup would otherwise undo the selection)
+    inp.addEventListener('focus', ()=>{ try{ inp.select(); }catch(e){} inp._justFocused = true; });
+    inp.addEventListener('mouseup', e=>{ if(inp._justFocused){ e.preventDefault(); inp._justFocused = false; } });
+    inp.addEventListener('blur', ()=>{ inp._justFocused = false; });
+  });
+
+  const gstHidden = row.querySelector('.gstRate');
+  const gstBtn = row.querySelector('.gst-trigger');
+  const setGst = v=>{ gstHidden.value = v; gstBtn.querySelector('.pt-value').textContent = v + '%'; updateTotals(); };
+  bindSelect(gstBtn, {title:'GST %', options:()=>GST_RATES, get:()=>gstHidden.value, set:v=>{ row._gstManual = true; setGst(v); }, minWidth:180});
+  row._setGst = setGst;
+  // Stock items with "5%" in the name (e.g. "3924 Nos 5%", "6307 (5%)") → GST 5%,
+  // with "12%" (e.g. "6307 (12%)", "7323 12% (Nos)") → GST 12%, all others → 18%.
+  // Once GST % is picked by hand on this row, it is left as chosen.
+  const autoGst = ()=>{
+    if(row._gstManual) return;
+    const want = /(^|[^0-9.])5\s*%/.test(item.value) ? '5'
+               : /(^|[^0-9.])12\s*%/.test(item.value) ? '12' : '18';
+    if(gstHidden.value !== want) setGst(want);
+  };
+  item.addEventListener('change', autoGst);
+  item.addEventListener('input', autoGst);
+
+  row.querySelector('.btn-x').addEventListener('click', ()=>removeRow(row));
+
+  renumber();
+  updateTotals();
+  if(fromUser){
+    row.scrollIntoView({block:'center', behavior:'smooth'});
+    if(!isSheet()) item.focus({preventScroll:true});
+  }
+}
+function removeRow(row){
+  if(pk.cfg && row.contains(pk.cfg.trigger)) pkClose(false);
+  if(getRows().length <= 1){
+    row.querySelector('.itemName').value = '';
+    row.querySelector('.itemNarration').value = '';
+    row.querySelector('.qty').value = '1';
+    row.querySelector('.rate').value = '';
+    row._setGst('18');
+    row._gstManual = false;
+    row._unitManual = false;
+    row._setUnit('', false);
+    return;
+  }
+  row.remove();
+  renumber();
+  updateTotals();
+}
+function renumber(){
+  getRows().forEach((r,i)=>{
+    r.querySelector('.ir-num').textContent = i + 1;
+    r.querySelector('.btn-x').setAttribute('aria-label', 'Remove item ' + (i + 1));
+  });
+}
+
+function isSameState(){
+  const homeState = document.getElementById('homeState').value.trim().toLowerCase();
+  const pos = document.getElementById('placeOfSupply').value.trim().toLowerCase();
+  return homeState === pos;
+}
+
+// Delivery charges + 18% GST (split CGST/SGST within state, IGST otherwise). Always positive.
+function computeDelivery(){
+  const amount = round2(Math.abs(parseFloat(document.getElementById('deliveryCharges').value)||0));
+  let sgst=0, cgst=0, igst=0;
+  if(isSameState()){
+    cgst = round2(amount*DELIVERY_GST_RATE/2/100);
+    sgst = cgst;
+  } else {
+    igst = round2(amount*DELIVERY_GST_RATE/100);
+  }
+  return {amount, sgst, cgst, igst, total:round2(amount+sgst+cgst+igst)};
+}
+
+function computeRows(){
+  const sameState = isSameState();
+
+  return getRows().map(r=>{
+    const name = r.querySelector('.itemName').value.trim();
+    const narration = r.querySelector('.itemNarration').value.trim();
+    const qty = Math.abs(parseFloat(r.querySelector('.qty').value)||0);
+    const rate = Math.abs(parseFloat(r.querySelector('.rate').value)||0);
+    const gstRate = Math.abs(parseFloat(r.querySelector('.gstRate').value)||0);
+    const unit = r.querySelector('.unit').value;
+    const amount = round2(qty*rate);
+    let sgst=0, cgst=0, igst=0;
+    if(sameState){
+      cgst = round2(amount*gstRate/2/100);
+      sgst = cgst;
+    } else {
+      igst = round2(amount*gstRate/100);
+    }
+    const total = round2(amount+sgst+cgst+igst);
+    return {el:r, name, narration, qty, rate, gstRate, unit, amount, sgst, cgst, igst, total};
+  });
+}
+
+function updateTotals(){
+  const rows = computeRows();
+  const sum = {amount:0, sgst:0, cgst:0, igst:0, total:0};
+  rows.forEach(r=>{
+    sum.amount += r.amount; sum.sgst += r.sgst; sum.cgst += r.cgst; sum.igst += r.igst; sum.total += r.total;
+    const tax = round2(r.sgst + r.cgst + r.igst);
+    r.el.querySelector('.ir-total').innerHTML = '₹' + fmt(r.total) + '<small>incl. ₹' + fmt(tax) + ' GST</small>';
+  });
+  const d = computeDelivery();
+  sum.sgst += d.sgst; sum.cgst += d.cgst; sum.igst += d.igst; sum.total += d.total;
+  document.getElementById('sumDelivery').textContent = '₹' + fmt(d.amount);
+  document.getElementById('deliveryHint').textContent = d.amount
+    ? '+ ₹' + fmt(round2(d.sgst + d.cgst + d.igst)) + ' GST (18%) = ₹' + fmt(d.total) + ' · ledger “Delivery Charges (GST)”'
+    : '+ 18% GST · Tally ledger “Delivery Charges (GST)”';
+  document.getElementById('sumAmount').textContent = '₹' + fmt(sum.amount);
+  document.getElementById('sumSgst').textContent = '₹' + fmt(sum.sgst);
+  document.getElementById('sumCgst').textContent = '₹' + fmt(sum.cgst);
+  document.getElementById('sumIgst').textContent = '₹' + fmt(sum.igst);
+  document.getElementById('sumTotal').textContent = '₹' + fmt(sum.total);
+  document.getElementById('abTotal').textContent = '₹' + fmt(sum.total);
+  document.getElementById('abCount').textContent = rows.length + (rows.length === 1 ? ' item' : ' items');
+
+  const same = document.getElementById('homeState').value === document.getElementById('placeOfSupply').value;
+  const badge = document.getElementById('taxMode');
+  badge.className = 'badge ' + (same ? 'intra' : 'inter');
+  badge.textContent = same ? 'Within state · CGST + SGST' : 'Other state · IGST';
+}
+
+document.getElementById('placeOfSupply').addEventListener('change', updateTotals);
+document.getElementById('homeState').addEventListener('change', updateTotals);
+document.getElementById('deliveryCharges').addEventListener('input', updateTotals);
+
+// Amounts can never be negative: block "-", "+" and "e" in number fields
+document.addEventListener('keydown', e=>{
+  if(e.target.classList && e.target.classList.contains('no-neg') && ['-','+','e','E'].includes(e.key)) e.preventDefault();
+});
+document.addEventListener('input', e=>{
+  const t = e.target;
+  if(t.classList && t.classList.contains('no-neg') && t.value.includes('-')) t.value = t.value.replace(/-/g,'');
+});
+
+/* ---------- status & validation ---------- */
+function setStatus(kind, msg){
+  const s = document.getElementById('status');
+  s.className = kind;
+  s.innerText = msg;
+}
+document.addEventListener('input', e=>{ if(e.target.classList && e.target.classList.contains('invalid')) e.target.classList.remove('invalid'); });
+function markInvalid(el){ el.classList.add('invalid'); }
+
+function formatDateDMY(isoStr){
+  if(!isoStr) return '';
+  const [y,m,d] = isoStr.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function generateExcel(){
+  if(sheetSending) return;
+  setStatus('', '');
+
+  const refNo = document.getElementById('refNo').value.trim();
+  const invDateRaw = document.getElementById('invDate').value;
+  const gstNo = gstNoEl.value.trim().toUpperCase();
+  const partyName = document.getElementById('partyName').value.trim();
+  const placeOfSupply = document.getElementById('placeOfSupply').value;
+  const salesLedger = document.getElementById('salesLedger').value.trim();
+
+  if(!refNo || !invDateRaw || !partyName){
+    const missing = [];
+    if(!refNo){ markInvalid(document.getElementById('refNo')); missing.push(document.getElementById('refNo')); }
+    if(!invDateRaw){ markInvalid(document.getElementById('invDateBtn')); missing.push(document.getElementById('invDateBtn')); }
+    if(!partyName){ markInvalid(document.getElementById('partyName')); missing.push(document.getElementById('partyName')); }
+    missing[0].scrollIntoView({block:'center', behavior:'smooth'});
+    if(!isSheet()) missing[0].focus({preventScroll:true});
+    setStatus('err', '✕ Please fill Reference No, Invoice Date and Party Name.');
+    return;
+  }
+
+  // Party must be one of the listed parties (selected from the dropdown)
+  if(!PARTIES.includes(partyName)){
+    const pEl = document.getElementById('partyName');
+    markInvalid(pEl);
+    pEl.scrollIntoView({block:'center', behavior:'smooth'});
+    setStatus('err', '✕ Please select the Party A/c Name from the dropdown list.');
+    return;
+  }
+
+  const rows = computeRows().filter(r => r.name || r.amount !== 0);
+  if(rows.length === 0){
+    const first = itemsList.querySelector('.itemName');
+    markInvalid(first);
+    first.scrollIntoView({block:'center', behavior:'smooth'});
+    setStatus('err', '✕ Please add at least one item.');
+    return;
+  }
+
+  // Delivery note / order: a date without a number is fine to skip, but a number needs its date
+  const dnNo = document.getElementById('dnNo').value.trim();
+  const dnDateRaw = document.getElementById('dnDate').value;
+  const orderNo = document.getElementById('orderNo').value.trim();
+  const orderDateRaw = document.getElementById('orderDate').value;
+  if((dnNo && !dnDateRaw) || (orderNo && !orderDateRaw)){
+    const btn = document.getElementById(dnNo && !dnDateRaw ? 'dnDateBtn' : 'orderDateBtn');
+    markInvalid(btn);
+    btn.scrollIntoView({block:'center', behavior:'smooth'});
+    setStatus('err', '✕ Please select the ' + (dnNo && !dnDateRaw ? 'Delivery Note Date' : 'Order Date') + '.');
+    return;
+  }
+
+  const invDate = formatDateDMY(invDateRaw);
+  const header = ["REFERANCE NO","INVOICE DATE","GST NO","PARTY A/C NAME","PLACE OF SUPPLY","SALES LEDGER","NAME OF ITEM","ITEM Narration","QUANTITY","RATE","AMOUNT","SGST","CGST","IGST","TOTAL AMOUNT",
+                  "UNIT","GST %","DELIVERY NOTE NO","DELIVERY NOTE DATE","ORDER NO","ORDER DATE",
+                  "DELIVERY CHARGES","DELIVERY SGST","DELIVERY CGST","DELIVERY IGST","INVOICE TOTAL","UNIQUE ID"];
+
+  const d = computeDelivery();
+  const invoiceTotal = round2(rows.reduce((a,r)=>a + r.total, 0) + d.total);
+  const aoa = [header];
+  rows.forEach((r,i)=>{
+    const first = i === 0;
+    aoa.push([
+      // A–O: the Excel columns (unchanged)
+      first ? refNo : '', invDate, gstNo, partyName, placeOfSupply, salesLedger,
+      r.name, r.narration, r.qty, r.rate, r.amount, r.sgst,
+      r.cgst, r.igst, r.total,
+      // P–AA: extra details for Tally XML (invoice-level ones only on the first row)
+      r.unit, r.gstRate,
+      first ? dnNo : '', first && dnNo ? formatDateDMY(dnDateRaw) : '',
+      first ? orderNo : '', first && orderNo ? formatDateDMY(orderDateRaw) : '',
+      first && d.amount ? d.amount : '', first && d.amount ? d.sgst : '',
+      first && d.amount ? d.cgst : '', first && d.amount ? d.igst : '',
+      first ? invoiceTotal : '',
+      ''   // UNIQUE ID — set by Google Sheet (yyyyMMddHHmmss)
+    ]);
+  });
+
+  // No download here — the invoice goes to the Google Sheet; Excel files are downloaded from the sheet's button.
+  sendToGoogleSheet(header, aoa.slice(1), refNo);
+}
+
+/* ---------- Google Sheet sync (Apps Script web app) ---------- */
+// Paste your Apps Script Web App URL here (it ends with /exec)
+const SHEET_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbwyXkpU8ZLGhmxjYEjAIPDaYFInjIdpSKLHlWJmN_U1-ffuWHCWHK9xHXl-SX5MTea3kQ/exec';
+// Must be exactly the same as TOKEN in the Apps Script
+const SHEET_TOKEN = 'swati-invoice-2026';
+
+let sheetSending = false;
+async function sendToGoogleSheet(header, rows, refNo){
+  if(!SHEET_WEBAPP_URL){
+    setStatus('err', '✕ Invoice not submitted: Google Sheet is not connected (add the Web App URL).');
+    return;
+  }
+  const btn = document.querySelector('.btn-generate');
+  sheetSending = true;
+  btn.disabled = true;
+  setStatus('ok', 'Submitting invoice ' + refNo + '…');
+
+  const ctrl = new AbortController();
+  const timer = setTimeout(()=>ctrl.abort(), 45000);
+  try{
+    const res = await fetch(SHEET_WEBAPP_URL, {
+      method:'POST',
+      // text/plain keeps this a "simple" request, so Apps Script works without CORS preflight
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({token:SHEET_TOKEN, header, rows}),
+      redirect:'follow',
+      signal:ctrl.signal
+    });
+    const data = await res.json();
+    if(!data.ok) throw new Error(data.error || 'Unknown error from Google Sheet');
+    resetForm();
+    setStatus('ok', '✓ Invoice ' + refNo + ' submitted to Google Sheet (rows ' + data.headerRow + '–' + data.lastRow + ')' +
+                    (data.uniqueId ? ' · ID ' + data.uniqueId : '') + ' — form cleared for the next invoice.');
+  }catch(err){
+    const msg = err.name === 'AbortError'
+      ? 'Google Sheet did not respond in time. Please check the sheet before trying again.'
+      : (err instanceof TypeError
+          ? 'Could not reach Google Sheet. Check your internet, the Web App URL, and that access is set to "Anyone".'
+          : err.message);
+    setStatus('err', '✕ Invoice not submitted: ' + msg);
+  }finally{
+    clearTimeout(timer);
+    sheetSending = false;
+    btn.disabled = false;
+  }
+}
+
+// After a successful submit: back to a fresh form (today's date, one empty item row)
+function resetForm(){
+  pkClose(false);
+  ['refNo','gstNo','partyName','dnNo','orderNo','deliveryCharges'].forEach(id=>{ document.getElementById(id).value = ''; });
+  document.getElementById('salesLedger').value = 'GST Sales';
+  updateGstHint();
+  const setDate = (id, v)=>{ const h = document.getElementById(id); h.value = v; h._render(); };
+  setDate('invDate', isoOf(new Date()));
+  setDate('dnDate', '');
+  setDate('orderDate', '');
+  setSelectValue('placeOfSupply', COMPANY.state, true);
+  setSelectValue('homeState', COMPANY.state, true);
+  document.querySelectorAll('.invalid').forEach(el=>el.classList.remove('invalid'));
+  itemsList.innerHTML = '';
+  addRow(false);
+  window.scrollTo({top:0, behavior:'smooth'});
+  if(!isSheet()) document.getElementById('refNo').focus({preventScroll:true});
+}
+
+/* ---------- init ---------- */
+injectIcons(document);
+makeStateSelect('placeOfSupply', 'posBtn', 'Place of Supply');
+makeStateSelect('homeState', 'homeBtn', 'Our State');
+setSelectValue('placeOfSupply', COMPANY.state, true);
+setSelectValue('homeState', COMPANY.state, true);
+document.getElementById('invDate').value = isoOf(new Date());
+bindDate(document.getElementById('invDateBtn'), document.getElementById('invDate'), 'Invoice Date');
+bindDate(document.getElementById('dnDateBtn'), document.getElementById('dnDate'), 'Delivery Note Date', true);
+bindDate(document.getElementById('orderDateBtn'), document.getElementById('orderDate'), 'Order Date', true);
+bindCombo(document.getElementById('partyName'), {title:'Party A/c Name', options:partyOptions, searchPlaceholder:'Search party or GSTIN…', minWidth:320, strict:true});
+bindCombo(document.getElementById('salesLedger'), {title:'Sales Ledger', options:()=>LEDGER_OPTIONS});
+
+// start with one item row
+addRow(false);
+</script>
+</body>
+</html>
