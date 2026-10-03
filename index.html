@@ -458,7 +458,7 @@
       <div class="field">
         <label for="partyName">Party A/c Name</label>
         <div class="combo">
-          <input id="partyName" type="text" placeholder="Type or select party" autocomplete="off" spellcheck="false">
+          <input id="partyName" type="text" placeholder="Search and select party" autocomplete="off" spellcheck="false">
           <button type="button" class="combo-btn" tabindex="-1" aria-label="Show all parties" data-icon="chev"></button>
         </div>
         <button type="button" class="link-btn" onclick="openPartyModal()">Manage party GSTIN / state ⚙</button>
@@ -561,16 +561,6 @@
       <button type="button" class="icon-btn" onclick="closePartyModal()" aria-label="Close" data-icon="x"></button>
     </div>
     <div class="modal-tools">
-      <div class="pm-add">
-        <div class="pm-add-title">Add new party</div>
-        <div class="pm-add-grid">
-          <input id="pmNewName" type="text" placeholder="Party name (as in Tally)" autocomplete="off" spellcheck="false" aria-label="New party name">
-          <input id="pmNewGstin" type="text" class="upper" maxlength="15" placeholder="GSTIN (optional)" autocomplete="off" spellcheck="false" autocapitalize="characters" aria-label="New party GSTIN">
-          <button type="button" class="picker-trigger" id="pmNewStateBtn" aria-label="New party state"><span class="pt-value"></span><span data-icon="chev"></span></button>
-          <button type="button" class="btn btn-primary" id="pmAddBtn">+ Add Party</button>
-        </div>
-        <div class="hint" id="pmAddMsg"></div>
-      </div>
       <div class="search-box"><span data-icon="search"></span><input id="pmSearch" type="text" placeholder="Search party or GSTIN" autocomplete="off" spellcheck="false"></div>
       <p class="modal-note">Set each party's GSTIN and State once — saved in this browser only. After that, selecting a party in "Party A/c Name" auto-fills GST No and Place of Supply.</p>
     </div>
@@ -626,8 +616,41 @@ const COMPANY = {
 
 const STATES = ["Maharashtra","Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh","Goa","Gujarat","Haryana","Himachal Pradesh","Jharkhand","Karnataka","Kerala","Madhya Pradesh","Manipur","Meghalaya","Mizoram","Nagaland","Odisha","Punjab","Rajasthan","Sikkim","Tamil Nadu","Telangana","Tripura","Uttar Pradesh","Uttarakhand","West Bengal","Delhi","Jammu and Kashmir","Ladakh","Chandigarh","Puducherry"];
 
+// Fixed party list (name, GSTIN). State is taken from the first two digits of the GSTIN.
 const PARTY_GSTIN_DATA = [
-["A 1 DISTRIBUTOR","27AADPT4550B1ZW"],["A BALL CREATORS","27AAFPG6032M1ZN"],["ABOOBACKER & SONS","27AHIPK3505D1ZP"],["Accurate Ladder","27EQDPP1228J1ZP"],["AI INDUSTRIAL SOLUTIONS","27OHGPS9112C1Z0"],["Aires Sales Corporation",""],["Aires Steel Corporation",""],["ALISONS","27AAAFA1519N1ZJ"],["AMCOL ENGINEERING STORES","27AABPP5995N1ZU"],["AMIT ELEDTRIC CORPORATION","27AQMPS4594D1ZB"],["AMIZARA TRADING CO","27AABPM0109K1ZZ"],["ANNA THAMANNA & CO","27AAHFA9658D1Z9"],["ANNU SALES CORPORATION","27AKHPP4385Q1Z7"],["ANTOP TRADING CO","27AAVPS1172J1Z2"],["APEX POLYMERS","27AAGFA4834N1Z5"],["APTECH INDIA","27AUHPJ7614C1ZS"],["Aries Steel Corporation",""],["ASIAN PIPE STORES","27ANNPS9397J1ZS"],["Asif Pasha Power Machinery Services",""],["A. S. K. ENTERPRISES","27AHBPK7050N1Z3"],["Ayush Engineers",""],["Bank Charges",""],["Bank Interest",""],["Beekay Engineers",""],["BHALARIA CORPORAION","27AACPB0378G1Z3"],["BHAVYA  FASTNERS","27ABBPM7448J1ZB"],["Bhavya Trading Co",""],["B M SHAH & SONS","27AAZPS6838B1Z0"],["B N ENTERPRISES","27BACPS6617Q1ZY"],["Bombay Engineering Syndicate",""],["Bright Industries",""],["BURHANI ENTERPRISE","27ADQPH0354M1Z8"],["Cali Mic Industrial Products",""],["Cash",""],["CGST @ 12%",""],["CHEPRA TRADING COMPANY","27AAAFC0827D1Z1"],["CHOUDHARY TRADERS","27ABAPS8424R1ZW"],["Compair Systems",""],["COSMOS ABRASIVES","27AMYPS1101J1ZP"],["C.P.VALVES  INDUSTRY","27AABPM4189K1ZB"],["Dagha Sales","27AAQFD0748J1Z3"],["DAVE SHAH AND CO SWITCHGEAR PVT LTD","27AABCD3047L1ZM"],["DCB Bank",""],["DCB BANK LIMITED","27AAACD1461F1Z2"],["DEEPAK TRADING CO","27AAFFD2444Q1Z3"],["Deepa Traders",""],["Delivery Charges",""],["Delivery Charges 18%",""],["Delivery Charges (GST)",""],["DILIPKUMAR & ASSOCIATES","27BIFPS8874L1Z9"],["Discount Given",""],["Discount Given (GST)",""],["DISHA INDUSTRIAL CORPORATION","27BAEPB3809B1ZC"],["DIVYA INDUSTRIES","27AFZPS1758R1Z0"],["DIWAN WIRES & HARDWARE/DIWAN IMPEX AND TRADING COMPANY","27AEYPM3280J1ZS"],["DIYA  INTERNATIONAL","27AIFPA6336G1ZI"],["D K MARKETING","27AAIPS3081K1Z9"],["Dolly Tools","27BNWPS9679H1ZM"],["DOSHI FASTNERS","27AAOPD1063C1Z5"],["DYNAMIC ENGINEERING CO.","27AAIFD9825C1ZE"],["EBRAHIM CURRIM AND SONS","27AAAFE0686L1Z9"],["Electricity Exp",""],["GANDHI ENTERPRISE","27AFTPG5898J1ZH"],["Ganesh Engineering",""],["Gas Bill",""],["GAUTAM PLASTICS","27AADPS2427C2ZY"],["Globe Electrical Industries",""],["GOBIND FASTNERS","03KHOPS1842F1Z3"],["Gst Payment",""],["GST Sales",""],["GUJRAT INDUSTRIAL WORKS","27AAIPS6562P1ZR"],["HAKIMI TRADING COMPANY","27FDSPM7849P1Z4"],["HARDWARE IMPORT EXPORT AGENCY","27AABFH7796R1ZC"],["HARIOM  TOOLS CENTRE","27AADPZ7928H1Z2"],["HARSHMAN  INTERNATIONAL","27BGWPS7428F1ZM"],["Hendo Industries",""],["HI BEAM ELECTRICALS","27ADNPV3286H1ZV"],["HINA SALES CORPORATION","27AADPD1785A1Z7"],["HITARTH TRADING CO","27AGNPT0503A1ZR"],["H.M.S OVERSEAS","27BPMPS3009B1Z0"],["HOUSE OF LINOLEUMS","27AGKPC1198H1ZC"],["Huda Tarpaulins",""],["Igst 18%",""],["IMPEX ENGG & EQUIPMENTS CO","27AABPD8896N1Z0"],["INOX METAPRODUCTS PVT.LTD","27AABCI2734B2Z1"],["Input Cgst",""],["Input Igst",""],["Input Sgst",""],["Ivna Bioenergy Private Limited",""],["JASH STRUCTURALS","27AARFJ0155C1ZI"],["JAY MAHALAXMI TRADERS","27AAAFJ4974G1Z8"],["JAYSHREE AGENCIES","27AAFFJ4178F1Z9"],["JAY STEEL INDUSTRIES","27AEJPD3428C1ZX"],["JAYSUKHLAL & BROS","27ASJPS3892F1Z7"],["JIGJIM ENTERPRISES","27AAAFJ1222D1Z3"],["J. J. STEEL CORPORATION","27AWVPS9535M1Z8"],["J K TOOLS & CO","27AANFJ5835F1Z3"],["Jmd International",""],["JUPITAR TRADERS","27AAAFJ4926E1ZK"],["KAHAN FASTENERS","27AAFFK7177F1Z3"],["K E ASSOCIATES","27AABPJ4061F1Z2"],["KING AGENCY","27ANXPS0840E1ZN"],["K M ANDROO AND COMPANY","27AAEFK9245R1ZI"],["KRAFT MACHINE TOOLS","27ABHPS6770P1ZO"],["Lalit  Fasteners",""],["Lokmangal Agro Ind Ltd (Sugar) Divsion",""],["Lokmangal Agro Industries Limited",""],["Lokmangal Mauli Industries Ltd",""],["Lokmangalsugar Enthanol & Co-Generation Industries Ltd",""],["LYON COPPER ALLOYS","27BHZPS3885A1ZM"],["MAHALAXMI ENTERPRISE","27AISPJ5252H1ZX"],["MAHAVIR COMPUTERS","27AAGPS2819D1ZQ"],["Mahesh Industries",""],["MANIBHADRA ELECTRICALS PVT LTD","27AADCM2739E1ZL"],["MANISH FASTNERS","27AGKPD9835G1Z5"],["MAP ENTERPRISES","27BITPT3753R1ZY"],["MASRANI ENGINEERING","27AAPPS1148C1ZN"],["MASTER SECURITY SOLUTION","27GJFPS2634E1Z3"],["Mediclaim",""],["Meet Engineering",""],["Metal Craft","03CJGPG6171B1ZQ"],["M M HARDWARE STORES","27AABPS3586Q1ZU"],["M OCHHAVLAL AND COMPANY","27AAAFM3904F1ZN"],["MODERN TECHNOLOGIES NX","27AAAHJ4011N1ZD"],["Mohandeep Industrial Corporation",""],["MOHITE ENTERPRISES","27AKCPM9413H1Z3"],["MOIZ & BROTHERS","27ABHFM6802E1ZD"],["MONEX ENTERPRISES","27ARGPS5361M1Z5"],["M/s ASHA TRADERS","27ABIFA0914E1ZV"],["M/s SHREE ARIHANT IMPEX","27ADAFS3864P1ZF"],["M/s Tech-Fab Industries",""],["M/s THE FLAP WHEEL CO","27AALFT1174H1ZZ"],["M/s Vishal Industrial Traders",""],["MUFFADAL ENTERPRISE","27AQTPK9341F1ZD"],["MUJAWAR ENGINEERING WORKS","27AAEPM7313A1Z5"],["MUKHI & CO.","27FDPPS7762L1ZD"],["NATIONAL ENGG AND MILL STORE","27AACFN2393R1ZM"],["NATIONAL TOOLS & HARDWARE AGENCY","27AAAFN0302J1ZR"],["NAVKAR TRANSMISSION PRODUCTS","27ACJPS3332C2ZQ"],["NAVPAD ENGINEERS","27AAAFN3939K1Z0"],["NEW ROSHAN INDUSTRIES","27AZPPK3729E1Z5"],["NITA TRADING CO.","27AEFPJ2594B1ZO"],["N K ELECTRICAL AGENCIES PVT LTD","27AACCN2488C1ZJ"],["NOBLE WIRE PRODUCTS","27AGGPR0009J1ZG"],["Nova Gas Dynamics Private Limited",""],["NUTS INDIA","27AIIPD0173D1ZR"],["Oceanglobe Container Services India Pvt Ltd",""],["OMKAR TRADERS","27AICPP2799K1ZM"],["OM SAI RAM ENTERPRISES","07AHRPG5299B1Z3"],["Onkar Power Corporation Private Limited  Unit No.15",""],["ORNO INFOSYS INDIA","27AELPM8871N1ZI"],["Output Cgst",""],["Output Igst",""],["Output Sgst",""],["PARAS ENGG CO","27AAAFP1812B2ZW"],["PARAS PIPE FITTING CO.","27ANUPS3580N1ZW"],["PARSHVA ENTERPRISE","27ANTPS9866L1ZK"],["PAYOMA INDUSTRIES","27ABBPS3897B1ZH"],["Pioneer Engineering Corporation",""],["PIPE LINKERS/GLOBAL LINK","27AAAPR7951B1ZQ"],["P K MOHAMED","27AAJFP7135J1ZV"],["POLITE ENTERPRISE","27APEPS5572E1ZN"],["POOJA SAFETY","27AEGPC6419R1Z1"],["PRAKASH MILL STORES","27AAGPS1025B1Z6"],["PRASHANT ENTERPRISE","27AAAFP2736J1Z7"],["PRATHAM FASTENERS","27AAIFP3451C1ZG"],["PRECISION BEARING AND ACCESSORIES","27ABFFP3088H1ZY"],["PSAMIRCO TRADING PRIVATE LIMITED","27AADCP2065J1ZC"],["P S INSTRUMENTS","27ACLPA4198G1ZH"],["Purchase 0%",""],["Purchase 18%",""],["Purchase 5%",""],["RAJANIKANT & CO.","27AABPB1020C1ZV"],["RAJESH HARDWARE STORES","27AAAFR2586C1ZC"],["RAJHANS ABRASIVES","27AUHPP4584D1ZD"],["RAJ MACHINERY NX","27AAEPM1955G2ZO"],["RAJ MACHINE TOOLS","27AABPJ6886A1ZR"],["Rameshwar Steel Works",""],["RAVI ABHAY TRADING CO.","27ABUPD6055D1ZL"],["RBL BANK LIMITED","27AABCT3335M1Z5"],["R. DINKARRAI & CO.","27AAAHD0054K1ZM"],["REASONABLE TOOLS CENTRE","27ABAFR6502P1ZV"],["RELIANCE NUT BOLT INDUSTRIES","24ABNPL1639C2ZV"],["RIDDHI SIDDHI CORPORATION","27ALTPV9449A1ZD"],["R K POLYMER","27AAKFR4634D1Z7"],["R K RATHOD & SONS","27AABPR1103N1ZS"],["ROSHAN PIPE FITTING","27BLPPP8838N1ZW"],["Round Off",""],["ROYAL AGENCY","27AVVPA5201H1ZO"],["ROYAL TUBE FITTINGS LLP","27ABLFR0258H1Z0"],["Ruan International","03CNIPK8753K1ZL"],["RUSHABH FASTENERS","27AEPPN8144K1ZT"],["SAANVI GLOBAL INC","27AADHK5372C1ZE"],["SAHAJANAND SALES CORPORATION","27ACXFS6904Q1ZX"],["SAHIL INTERNATIONAL","27AADPD1786D1Z0"],["Samtek Engineering Tools",""],["SANGAM ENTERPRISES","27AABFS0314G1ZO"],["SANGEETA ENTERPRISES","27AJEPM7817Q1ZG"],["SANJAY ENTERPRISES","27ADAFS6988A1ZV"],["SENTINEL ELECTRIC CO","27AAAFS4582K1ZU"],["SGST @ 12%",""],["SHAH ENGINEERING & MACHINERY CO","27AAFPS3065A1ZX"],["SHAH FILES & DRILLS PVT LTD","27AAACS7143P1ZV"],["SHAH PRECISION INDUSTRIES","27ABDFS2969Q1ZA"],["SHALIBHADRA ENTERPRISE","27BAHPS0571C1ZT"],["SHIKHAR INDUSTRIAL SUPPLIERS","27ACYPS0649H2ZV"],["SHREE AMBIKA INDUSTRIES","27AAOPD5426H1ZO"],["SHREE GANESH INDUSTRIES","27AEZPA2415G1ZJ"],["SHREENATH ENTERPRISES","27AASFS8052N1Z9"],["SHREE NM ELECTRICALS LTD","27AADCS6037P1ZT"],["SHREE SHAKTI FASTENERS","27AERFS4143R1Z2"],["SHRI ANIRUDHA ENTERPRISE","27AHQPB7274E1Z6"],["SHRINATH INDUSTRIAL STORES","27AACFS4332D1ZJ"],["Shrinathji Industries - Agency","27ABXFS0954K1ZD"],["Shubham Steels","27ELOPS9755R1ZH"],["SHUBH ENGINEERING","27AQCPS8757J1Z3"],["Siemag Industries",""],["S M ENTERPRISES","27AAQPK2268J2Z7"],["SMITH ENGINEERING COMPANY","27AABFS2833A1ZO"],["SOHAM SALES","27BKSPS6803A1ZY"],["Sourabh Agency",""],["S P Air Control",""],["S.P.Air Tools Private Limited",""],["S P Engineers",""],["S. P. ENTERPRISE","27AAEPD3574A1Z7"],["Sps Intermodal Services (India) Private Limited","27AANCS4956R1Z7"],["Sri Krishna Cargo",""],["S. R. METAL CORPORATION","27AEVPJ3075R1ZH"],["STAR ELECTRIC CO","27AAFPZ1596F2Z7"],["STARLITE ENGINEERING COMPANY","27AAPFS0208M1ZW"],["STRONG HOLD FASTENERS","27CFUPS3829G1ZQ"],["SUNIL SALES","27AADPM0247J1ZS"],["SUNRISE BEARING CENTRE","27AACPS1295H1ZI"],["SUPER AUTOMATION","27BHZPS3442R1Z2"],["Super Pneumatics","27BHTPS1660M1ZI"],["Suspense",""],["Techno Lifts",""],["TRADE-TECH","27AINPC8128L1ZV"],["TRINITY ENTERPRISE","27ABFPS2584M1Z0"],["Unique Fab Industries",""],["UNIQUE TRADING CO","27AAAFU9441M1ZO"],["UNISON CORPORATION","27AFDPB8748Q1ZT"],["USHA ENGINEERING COMPANY","27ARYPS9482K1ZD"],["VAIBHAV INTERNATIONAL","27AGFPS5953F1Z2"],["VALISONS AND CO","27AAAFV5145M1ZU"],["V CARE PROTECTIVE PRODUCTS","27AAQFV2854H1ZN"],["VENKATESH SUPERMART","27AAJFV5540K1ZQ"],["VENUS TOOLS AGENCIES","27AMNPS2803G1ZW"],["V H SAFETY CARE","27AZQPK6407L1ZS"],["VIKESH TRADING COMPANY","27AACPS9884J1ZU"],["VIMAL INDUSTRIAL CORPORATION","27AARFV4705E1ZY"],["VIPUL TOOLS CENTRE","27AAAFV0777H1Z1"],["VIRAL  ENTERPRISE","27ADLPV1278R1ZG"],["WIPERDRIVE INDUSTRIES","27AADPS1585K1Z9"],["YOGENDRA ENTERPRISE","27ALCPD8825D1ZC"],["ZIPVISION TECHNOLOGIES LLP","27AADFZ7119E1Z2"],["Zodiac Tank Container Terminals Private Limited",""]
+["Aries Steel Corporation","27AIWPP9135H1ZH"],
+["Asif Pasha Power Machinery Services","37AAXFA2418D1ZG"],
+["Ayush Engineers","27AIKPA4850C1ZM"],
+["Beekay Engineers","27BJWPC3632E1Z7"],
+["Bright Industries","27AARFB0886C1ZC"],
+["Compair Systems","27AAAFC0331L1ZT"],
+["Deepa Traders","27AAHFD4415D1ZT"],
+["Denver Robotics & Automation","27ASZPD3568K1ZY"],
+["Ganesh Engineering","27ASOPP4503D1ZR"],
+["Globe Electrical Industries","27AADPG2439A1ZB"],
+["Hendo Industries","27AAQPD1919B1Z0"],
+["Ivna Bioenergy Private Limited","27AAFCI1291P1Z3"],
+["Jmd International","27BLKPK7278L1ZA"],
+["Lokmangal Agro Industries Limited","27AAACL7933N1Z0"],
+["Lokmangal Mauli Industries Ltd","27AABCL4457C1ZP"],
+["Lokmangalsugar Enthanol & Co-Generation Industries Ltd","27AAACL9193J1Z0"],
+["Mahesh Industries","27AOYPM9080L1ZT"],
+["Meet Engineering","24ATIPP9237F1ZG"],
+["M/s Tech-Fab Industries","27AALFT3650L1ZP"],
+["Nova Gas Dynamics Private Limited","27AAKCN0591N1ZW"],
+["Oceanglobe Container Services India Pvt Ltd","27AAACO0860H1ZM"],
+["Onkar Power Corporation Private Limited  Unit No.15","27AAECO2135P1Z5"],
+["Pioneer Engineering Corporation","24AAAFP1708N1ZB"],
+["Rameshwar Steel Works","27AABPP3025F1Z2"],
+["Samtek Engineering Tools","27AQPPG2415C1Z6"],
+["Siemag Industries","27AAAFS6685B1Z5"],
+["Sourabh Agency","27BYHPK7123A1ZQ"],
+["S P Air Control","27AMOPP4600K1ZQ"],
+["S.P.Air Tools Private Limited","27AAQCS6598G1ZH"],
+["S P Engineers","27AEVPP8979C1ZJ"],
+["Sps Intermodal Services (India) Private Limited","27AANCS4956R1Z7"],
+["Unique Fab Industries","27AGPPN1679P1ZD"],
+["Zodiac Tank Container Terminals Private Limited","27AABCZ1318C1ZP"]
 ];
 
 const PARTY_GSTIN_SEED = {};
@@ -685,8 +708,7 @@ const isSheet = () => mqSheet.matches;
 const STATE_CODE = {};
 Object.keys(GST_STATE_CODES).forEach(c=>{ STATE_CODE[GST_STATE_CODES[c]] = c; });
 const STATE_OPTIONS = STATES.map(s=>({value:s, label:s, hint:STATE_CODE[s] || ''}));
-/* ---------- New parties & stock items added by the user (saved in this browser) ---------- */
-const CUSTOM_PARTIES_KEY = 'invoiceGen_customParties_v1';
+/* ---------- Stock items added by the user (saved in this browser). The party list is fixed. ---------- */
 const CUSTOM_STOCK_KEY = 'invoiceGen_customStockItems_v1';
 function loadCustomList(key){
   try{
@@ -698,9 +720,8 @@ function saveCustomList(key, list){
   try{ localStorage.setItem(key, JSON.stringify(list)); }catch(e){}
 }
 const sameName = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
-let CUSTOM_PARTIES = loadCustomList(CUSTOM_PARTIES_KEY);
+const CUSTOM_PARTIES = [];   // parties cannot be added any more
 let CUSTOM_STOCK = loadCustomList(CUSTOM_STOCK_KEY);
-CUSTOM_PARTIES.forEach(n=>{ if(!PARTIES.some(p => sameName(p, n))) PARTIES.push(n); });
 CUSTOM_STOCK.forEach(n=>{ if(!STOCK_ITEMS.some(s => sameName(s, n))) STOCK_ITEMS.push(n); });
 
 let STOCK_OPTIONS = STOCK_ITEMS.map(s=>({value:s, label:s}));
@@ -991,7 +1012,7 @@ function makeStateSelect(hiddenId, btnId, title){
 }
 function setSelectValue(id, v, silent){ document.getElementById(id)._set(v, silent); }
 
-/* ---- combo box: type freely or pick from the list ---- */
+/* ---- combo box: type to search, pick from the list (strict = must pick from the list) ---- */
 const COMBOS = [];
 function bindCombo(input, cfg){
   const wrap = input.closest('.combo');
@@ -1001,7 +1022,7 @@ function bindCombo(input, cfg){
   input.setAttribute('aria-expanded', 'false');
   const isOpen = ()=> pk.cfg && pk.cfg.combo === input;
   const open = query => pkOpen({
-    anchor:wrap, trigger:input, combo:input, free:true, focusSearch:true,
+    anchor:wrap, trigger:input, combo:input, free:!cfg.strict, focusSearch:true,
     title:cfg.title, options:cfg.options, value:()=>input.value.trim(),
     initialQuery:query, searchPlaceholder:cfg.searchPlaceholder, minWidth:cfg.minWidth || 260,
     onPick:v=>{
@@ -1023,6 +1044,21 @@ function bindCombo(input, cfg){
   input.addEventListener('blur', ()=>setTimeout(()=>{
     if(isOpen() && !pk.sheet && document.activeElement !== input && !pkEls.panel.contains(document.activeElement)) pkClose(false);
   }, 0));
+  if(cfg.strict){
+    // Typing is only for searching: anything not picked from the list is cleared when focus leaves.
+    input.addEventListener('blur', ()=>setTimeout(()=>{
+      if(isOpen() || document.activeElement === input || pkEls.panel.contains(document.activeElement)) return;
+      const v = input.value.trim();
+      if(!v) return;
+      const hit = cfg.options().find(o => o.label.toLowerCase() === v.toLowerCase());
+      if(hit){
+        if(input.value !== hit.value){ input.value = hit.value; input.dispatchEvent(new Event('change', {bubbles:true})); }
+      } else {
+        input.value = '';
+        input.dispatchEvent(new Event('change', {bubbles:true}));
+      }
+    }, 80));
+  }
   btn.addEventListener('pointerdown', e=>e.preventDefault());
   btn.addEventListener('click', ()=>{
     if(isOpen()){ pkClose(true); return; }
@@ -1207,7 +1243,6 @@ const pmSearch = document.getElementById('pmSearch');
 
 function makePmRow(name){
   const p = PARTY_MASTER[name] || {gstin:'', state:COMPANY.state};
-  const custom = CUSTOM_PARTIES.some(n => sameName(n, name));
   const row = document.createElement('div');
   row.className = 'pm-row';
   row.innerHTML =
@@ -1215,11 +1250,6 @@ function makePmRow(name){
     '<input type="text" class="pm-gstin upper" maxlength="15" placeholder="GSTIN" autocomplete="off" spellcheck="false" autocapitalize="characters">' +
     '<button type="button" class="picker-trigger pm-state" aria-haspopup="listbox" aria-expanded="false"><span class="pt-value"></span><span data-icon="chev"></span></button>';
   row.querySelector('.pm-label').textContent = name;
-  if(custom){
-    row.querySelector('.pm-name').insertAdjacentHTML('beforeend',
-      '<span class="tag-new">Added</span><button type="button" class="row-del pm-del">Remove</button>');
-    row.querySelector('.pm-del').setAttribute('aria-label', 'Remove ' + name);
-  }
   const g = row.querySelector('.pm-gstin');
   g.value = p.gstin || '';
   g.dataset.party = name;
@@ -1237,13 +1267,9 @@ function openPartyModal(){
   pkClose(false);
   pmList.innerHTML = '';
   const frag = document.createDocumentFragment();
-  // parties you added come first
-  PARTIES.filter(n => CUSTOM_PARTIES.some(c => sameName(c, n))).reverse()
-    .concat(PARTIES.filter(n => !CUSTOM_PARTIES.some(c => sameName(c, n))))
-    .forEach(name => frag.appendChild(makePmRow(name)));
+  PARTIES.forEach(name => frag.appendChild(makePmRow(name)));
   pmList.appendChild(frag);
   pmSearch.value = '';
-  resetPmAdd();
   pmFilter();
   document.getElementById('partyModalOverlay').classList.add('open');
   document.body.classList.add('no-scroll');
@@ -1270,8 +1296,6 @@ function pmFilter(){
 }
 pmSearch.addEventListener('input', pmFilter);
 pmList.addEventListener('click', e=>{
-  const del = e.target.closest('.pm-del');
-  if(del){ removeCustomParty(del.closest('.pm-row')); return; }
   const b = e.target.closest('.pm-state');
   if(!b) return;
   if(pk.cfg && pk.cfg.trigger === b){ pkClose(true); return; }
@@ -1308,74 +1332,6 @@ function savePartyMasterFromModal(){
 document.getElementById('partyModalOverlay').addEventListener('click', function(e){
   if(e.target === this) closePartyModal();
 });
-
-/* ---- add a new party (saved in this browser straight away) ---- */
-const pmNewName = document.getElementById('pmNewName');
-const pmNewGstin = document.getElementById('pmNewGstin');
-const pmNewStateBtn = document.getElementById('pmNewStateBtn');
-function setPmNewState(v){ pmNewStateBtn.dataset.value = v; pmNewStateBtn.querySelector('.pt-value').textContent = v; }
-function pmAddMsg(kind, msg){ const h = document.getElementById('pmAddMsg'); h.className = 'hint' + (kind ? ' ' + kind : ''); h.textContent = msg; }
-function resetPmAdd(){
-  pmNewName.value = ''; pmNewGstin.value = '';
-  pmNewName.classList.remove('invalid'); pmNewGstin.classList.remove('invalid');
-  setPmNewState(COMPANY.state);
-  pmAddMsg('', '');
-}
-bindSelect(pmNewStateBtn, {
-  title:'State', options:()=>STATE_OPTIONS, get:()=>pmNewStateBtn.dataset.value,
-  set:v=>setPmNewState(v), searchPlaceholder:'Search state or code…', minWidth:240
-});
-pmNewGstin.addEventListener('input', ()=>{
-  upperKeepCaret(pmNewGstin);
-  const st = deriveStateFromGSTIN(pmNewGstin.value);
-  if(st && STATES.includes(st)) setPmNewState(st);
-});
-function addNewParty(){
-  const name = pmNewName.value.trim().replace(/\s+/g, ' ');
-  const gstin = pmNewGstin.value.trim().toUpperCase();
-  if(!name){ pmNewName.classList.add('invalid'); pmNewName.focus(); pmAddMsg('err', 'Please enter the party name.'); return; }
-  const existing = PARTIES.find(p => sameName(p, name));
-  if(existing){ pmNewName.classList.add('invalid'); pmAddMsg('err', '“' + existing + '” is already in the list.'); return; }
-  if(gstin && !GSTIN_RE.test(gstin)){ pmNewGstin.classList.add('invalid'); pmNewGstin.focus(); pmAddMsg('err', 'GSTIN should be 15 characters, e.g. 27ABCDE1234F1Z5 — or leave it empty.'); return; }
-
-  PARTIES.push(name);
-  CUSTOM_PARTIES.push(name);
-  saveCustomList(CUSTOM_PARTIES_KEY, CUSTOM_PARTIES);
-  PARTY_MASTER[name] = { gstin, state: pmNewStateBtn.dataset.value || COMPANY.state };
-  // save only this party's details; other edits in the list still wait for "Save"
-  let saved = {};
-  try{ saved = JSON.parse(localStorage.getItem(PM_STORAGE_KEY)) || {}; }catch(e){ saved = {}; }
-  saved[name] = PARTY_MASTER[name];
-  savePartyMasterToStorage(saved);
-
-  const row = makePmRow(name);
-  row.classList.add('just-added');
-  pmList.insertBefore(row, pmList.firstChild);
-  pmSearch.value = '';
-  pmFilter();
-  document.querySelector('#partyModalOverlay .modal-body').scrollTop = 0;
-  resetPmAdd();
-  pmAddMsg('ok', '✓ “' + name + '” added — you can now select it in Party A/c Name.');
-  if(!isSheet()) pmNewName.focus();
-}
-function removeCustomParty(row){
-  const name = row.querySelector('.pm-gstin').dataset.party;
-  if(!confirm('Remove “' + name + '” from your party list?')) return;
-  const i = PARTIES.findIndex(p => sameName(p, name));
-  if(i >= 0) PARTIES.splice(i, 1);
-  CUSTOM_PARTIES = CUSTOM_PARTIES.filter(n => !sameName(n, name));
-  saveCustomList(CUSTOM_PARTIES_KEY, CUSTOM_PARTIES);
-  delete PARTY_MASTER[name];
-  let saved = {};
-  try{ saved = JSON.parse(localStorage.getItem(PM_STORAGE_KEY)) || {}; }catch(e){ saved = {}; }
-  delete saved[name];
-  savePartyMasterToStorage(saved);
-  row.remove();
-  pmFilter();
-  pmAddMsg('ok', '“' + name + '” removed.');
-}
-document.getElementById('pmAddBtn').addEventListener('click', addNewParty);
-[pmNewName, pmNewGstin].forEach(el => el.addEventListener('keydown', e=>{ if(e.key === 'Enter'){ e.preventDefault(); addNewParty(); } }));
 
 /* ---------- Stock items (add your own, saved in this browser) ---------- */
 const smList = document.getElementById('stockItemList');
@@ -1736,6 +1692,15 @@ function generateExcel(){
     return;
   }
 
+  // Party must be one of the listed parties (selected from the dropdown)
+  if(!PARTIES.includes(partyName)){
+    const pEl = document.getElementById('partyName');
+    markInvalid(pEl);
+    pEl.scrollIntoView({block:'center', behavior:'smooth'});
+    setStatus('err', '✕ Please select the Party A/c Name from the dropdown list.');
+    return;
+  }
+
   const rows = computeRows().filter(r => r.name || r.amount !== 0);
   if(rows.length === 0){
     const first = itemsList.querySelector('.itemName');
@@ -1864,7 +1829,7 @@ document.getElementById('invDate').value = isoOf(new Date());
 bindDate(document.getElementById('invDateBtn'), document.getElementById('invDate'), 'Invoice Date');
 bindDate(document.getElementById('dnDateBtn'), document.getElementById('dnDate'), 'Delivery Note Date', true);
 bindDate(document.getElementById('orderDateBtn'), document.getElementById('orderDate'), 'Order Date', true);
-bindCombo(document.getElementById('partyName'), {title:'Party A/c Name', options:partyOptions, searchPlaceholder:'Search party or GSTIN…', minWidth:320});
+bindCombo(document.getElementById('partyName'), {title:'Party A/c Name', options:partyOptions, searchPlaceholder:'Search party or GSTIN…', minWidth:320, strict:true});
 bindCombo(document.getElementById('salesLedger'), {title:'Sales Ledger', options:()=>LEDGER_OPTIONS});
 
 // start with one item row
